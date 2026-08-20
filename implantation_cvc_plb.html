@@ -173,6 +173,7 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
         <div id="planStatus" style="font-size:11.5px;color:var(--muted);margin-bottom:6px;">Aucun niveau sélectionné</div>
         <input type="file" id="pdfInput" accept="application/pdf" class="hidden" onchange="onPdfChosen(this.files[0])">
         <button class="btn small" style="width:100%;justify-content:center;" onclick="document.getElementById('pdfInput').click()">📄 Importer un plan PDF</button>
+        <div style="font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.35;">Rendu haute résolution. Réimportez le PDF si un ancien plan paraît flou.</div>
         <div id="calibBox" class="hidden" style="margin-top:8px;">
           <label class="f">Étalonnage</label>
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Cliquez 2 points sur une cote connue du plan, puis indiquez sa longueur réelle.</div>
@@ -2440,13 +2441,16 @@ function onPdfChosen(file){
       const pdf = await pdfjsLib.getDocument({data: typedArray}).promise;
       const page = await pdf.getPage(1);
       const baseViewport = page.getViewport({scale: 1});
-      const targetScale = Math.min(3600 / baseViewport.width, 3600 / baseViewport.height, 4.5);
-      const viewport = page.getViewport({scale: Math.max(targetScale,1)});
+      // Haute résolution : cible ~220–250 dpi équivalent écran, plafond 8192 px
+      // (au-delà, Chrome/canvas peut échouer ou saturer la mémoire).
+      const MAX_PLAN_PX = 8192;
+      const targetScale = Math.min(MAX_PLAN_PX / baseViewport.width, MAX_PLAN_PX / baseViewport.height, 10);
+      const viewport = page.getViewport({scale: Math.max(targetScale, 2)});
       const canvas = document.createElement('canvas');
-      canvas.width = viewport.width; canvas.height = viewport.height;
-      const ctx = canvas.getContext('2d');
-      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
-      await page.render({canvasContext: ctx, viewport}).promise;
+      canvas.width = Math.round(viewport.width); canvas.height = Math.round(viewport.height);
+      const ctx = canvas.getContext('2d', { alpha: false, willReadFrequently: false });
+      ctx.imageSmoothingEnabled = false;
+      await page.render({ canvasContext: ctx, viewport, intent: 'print' }).promise;
       lvl.plan = { dataUrl: canvas.toDataURL('image/png'), widthPx: canvas.width, heightPx: canvas.height };
       lvl.calibration = null;
       lvl.insertionPoint = null;
@@ -2455,6 +2459,11 @@ function onPdfChosen(file){
       fitView();
       renderAll();
       scheduleAutosave();
+      const t = document.getElementById('toast2d');
+      if (t){
+        t.textContent = `Plan importé — ${canvas.width}×${canvas.height} px (haute définition)`;
+        t.classList.add('show'); setTimeout(()=>t.classList.remove('show'), 2800);
+      }
     }catch(err){
       console.error(err);
       alert('Impossible de lire ce PDF : ' + err.message);
@@ -2570,17 +2579,30 @@ function draw2d(){
   ctx2d.translate(camState.panX, camState.panY);
   ctx2d.scale(camState.zoom, camState.zoom);
 
+  // Plans raster : lissage seulement en dézoom (évite le flou au zoom)
+  const planSmooth = camState.zoom < 0.95;
+
   // fond d'autres niveaux estompé
   if (document.getElementById('chkAllOtherLevels').checked){
     project.levels.filter(l=>l.id!==lvl.id).forEach(l=>{
       const img = planImageCache[l.id];
-      if (img){ ctx2d.globalAlpha=0.12; ctx2d.drawImage(img,0,0); ctx2d.globalAlpha=1; }
+      if (img){
+        ctx2d.imageSmoothingEnabled = planSmooth;
+        if (planSmooth) ctx2d.imageSmoothingQuality = 'high';
+        ctx2d.globalAlpha=0.12; ctx2d.drawImage(img,0,0); ctx2d.globalAlpha=1;
+      }
     });
   }
 
   if (lvl.plan){
     const img = planImageCache[lvl.id];
-    if (img) ctx2d.drawImage(img, 0, 0);
+    if (img){
+      ctx2d.imageSmoothingEnabled = planSmooth;
+      if (planSmooth) ctx2d.imageSmoothingQuality = 'high';
+      ctx2d.drawImage(img, 0, 0);
+      ctx2d.imageSmoothingEnabled = true;
+      ctx2d.imageSmoothingQuality = 'high';
+    }
     else { ctx2d.fillStyle='#333'; ctx2d.fillRect(0,0,lvl.plan.widthPx,lvl.plan.heightPx); }
   }
 
@@ -4562,6 +4584,10 @@ function getPlanTexture(lvl){
   if (!img) return null;
   const tex = new THREE.Texture(img);
   tex.needsUpdate = true;
+  tex.generateMipmaps = true;
+  tex.minFilter = THREE.LinearMipmapLinearFilter;
+  tex.magFilter = THREE.LinearFilter;
+  tex.anisotropy = (three.renderer && three.renderer.capabilities) ? Math.min(8, three.renderer.capabilities.getMaxAnisotropy()) : 4;
   if (THREE.sRGBEncoding !== undefined) tex.encoding = THREE.sRGBEncoding;
   planTextureCache[lvl.id] = tex;
   return tex;
@@ -5595,6 +5621,7 @@ function renderFullPlanCanvas(lvl){
   const c = document.createElement('canvas');
   c.width = lvl.plan.widthPx; c.height = lvl.plan.heightPx;
   const cx = c.getContext('2d');
+  cx.imageSmoothingEnabled = false;
   const savedCam = camState;
   camState = { zoom:1, panX:0, panY:0 };
   const img = planImageCache[lvl.id];
