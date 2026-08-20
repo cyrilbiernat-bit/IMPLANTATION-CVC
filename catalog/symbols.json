@@ -1,0 +1,257 @@
+{
+  "version": 1,
+  "families": {
+    "cvc": {
+      "label": "CVC",
+      "color": "var(--turq)",
+      "items": [
+        {
+          "id": "cta",
+          "label": "CTA",
+          "w": 1.6,
+          "h": 1.0
+        },
+        {
+          "id": "vmc",
+          "label": "VMC",
+          "w": 0.8,
+          "h": 0.6
+        },
+        {
+          "id": "diffusion",
+          "label": "Diffuseur soufflage",
+          "w": 0.4,
+          "h": 0.4
+        },
+        {
+          "id": "reprise",
+          "label": "Bouche reprise",
+          "w": 0.4,
+          "h": 0.4
+        },
+        {
+          "id": "diffusion-lineaire",
+          "label": "Diffuseur linéaire",
+          "w": 1.0,
+          "h": 0.15
+        },
+        {
+          "id": "diffusion-cone",
+          "label": "Diffuseur à cône",
+          "w": 0.35,
+          "h": 0.35,
+          "conn": []
+        },
+        {
+          "id": "diffusion-directionnel",
+          "label": "Diffuseur directionnel",
+          "w": 0.4,
+          "h": 0.4,
+          "conn": []
+        },
+        {
+          "id": "extracteur-toiture",
+          "label": "Extracteur de toiture",
+          "w": 0.7,
+          "h": 0.7,
+          "conn": []
+        },
+        {
+          "id": "clapet-antiretour",
+          "label": "Clapet anti-retour",
+          "w": 0.3,
+          "h": 0.25,
+          "conn": []
+        },
+        {
+          "id": "filtre-manches",
+          "label": "Filtre à manches",
+          "w": 0.6,
+          "h": 0.4
+        },
+        {
+          "id": "groupe-froid",
+          "label": "Groupe eau glacée",
+          "w": 1.4,
+          "h": 0.9
+        },
+        {
+          "id": "radiateur",
+          "label": "Radiateur",
+          "w": 0.9,
+          "h": 0.15
+        },
+        {
+          "id": "ventiloconvecteur",
+          "label": "Ventilo-convecteur",
+          "w": 0.8,
+          "h": 0.25
+        },
+        {
+          "id": "chaudiere",
+          "label": "Chaudière",
+          "w": 0.6,
+          "h": 0.4
+        },
+        {
+          "id": "ballon-tampon",
+          "label": "Ballon tampon",
+          "w": 0.6,
+          "h": 0.6,
+          "conn": []
+        },
+        {
+          "id": "vanne-cvc",
+          "label": "Vanne CVC",
+          "w": 0.25,
+          "h": 0.25,
+          "conn": []
+        },
+        {
+          "id": "pompe-cvc",
+          "label": "Pompe CVC",
+          "w": 0.3,
+          "h": 0.3,
+          "conn": []
+        },
+        {
+          "id": "vmc-df",
+          "label": "VMC double flux",
+          "w": 1.1,
+          "h": 0.7
+        },
+        {
+          "id": "silencieux",
+          "label": "Silencieux",
+          "w": 0.7,
+          "h": 0.35
+        },
+        {
+          "id": "registre-cf",
+          "label": "Registre coupe-feu",
+          "w": 0.5,
+          "h": 0.35,
+          "conn": []
+        },
+        {
+          "id": "grille-transfert",
+          "label": "Grille de transfert",
+          "w": 0.4,
+          "h": 0.3
+        }
+      ]
+    },
+    "plb": {
+      "label": "Plomberie",
+      "color": "var(--orange)",
+      "items": [
+        {
+          "id": "lavabo",
+          "label": "Lavabo",
+          "w": 0.6,
+          "h": 0.45
+        },
+        {
+          "id": "wc",
+          "label": "WC",
+          "w": 0.4,
+          "h": 0.6,
+          "conn": []
+        },
+        {
+          "id": "douche",
+          "label": "Douche",
+          "w": 0.9,
+          "h": 0.9
+        },
+        {
+          "id": "baignoire",
+          "label": "Baignoire",
+          "w": 1.6,
+          "h": 0.75,
+          "conn": []
+        },
+        {
+          "id": "evier",
+          "label": "Évier",
+          "w": 0.8,
+          "h": 0.5
+        },
+        {
+          "id": "ballon-ecs",
+          "label": "Ballon ECS",
+          "w": 0.55,
+          "h": 0.55,
+          "conn": []
+        },
+        {
+          "id": "pompe-plb",
+          "label": "Pompe PLB",
+          "w": 0.3,
+          "h": 0.3,
+          "conn": []
+        },
+        {
+          "id": "vanne-plb",
+          "label": "Vanne PLB",
+          "w": 0.25,
+          "h": 0.25,
+          "conn": []
+        },
+        {
+          "id": "siphon-sol",
+          "label": "Siphon de sol",
+          "w": 0.2,
+          "h": 0.2,
+          "conn": []
+        },
+        {
+          "id": "surpresseur",
+          "label": "Groupe surpresseur",
+          "w": 0.7,
+          "h": 0.5
+        },
+        {
+          "id": "adoucisseur",
+          "label": "Adoucisseur",
+          "w": 0.4,
+          "h": 0.4
+        },
+        {
+          "id": "disconnecteur",
+          "label": "Disconnecteur",
+          "w": 0.35,
+          "h": 0.2,
+          "conn": []
+        }
+      ]
+    },
+    "reservation": {
+      "label": "Réservations",
+      "color": "#ffd166",
+      "items": [
+        {
+          "id": "passage-dalle",
+          "label": "Passage de dalle",
+          "w": 0.4,
+          "h": 0.4,
+          "conn": []
+        },
+        {
+          "id": "fourreau",
+          "label": "Fourreau",
+          "w": 0.15,
+          "h": 0.15,
+          "conn": []
+        },
+        {
+          "id": "tremie",
+          "label": "Trémie technique",
+          "w": 0.8,
+          "h": 0.6,
+          "conn": []
+        }
+      ]
+    }
+  }
+}

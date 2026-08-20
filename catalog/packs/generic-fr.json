@@ -1,0 +1,25 @@
+{
+  "id": "generic-fr",
+  "label": "Pack fabricants générique (FR)",
+  "version": 1,
+  "symbols": [
+    {
+      "id": "cta-aldès-t4",
+      "base": "cta",
+      "label": "CTA Aldès T4",
+      "manufacturer": "Aldès",
+      "ref": "T4",
+      "w": 1.8,
+      "h": 1.1
+    },
+    {
+      "id": "vmc-unicel-hygro",
+      "base": "vmc",
+      "label": "VMC Unelvent Hygro",
+      "manufacturer": "Unelvent",
+      "ref": "Hygro",
+      "w": 0.7,
+      "h": 0.55
+    }
+  ]
+}
