@@ -1,0 +1,11 @@
+{
+  "name": "IMPLANTATION-CVC",
+  "install": "npm install",
+  "terminals": [
+    {
+      "name": "Serveur web (dev)",
+      "command": "npm run dev"
+    }
+  ],
+  "ports": [5173]
+}
