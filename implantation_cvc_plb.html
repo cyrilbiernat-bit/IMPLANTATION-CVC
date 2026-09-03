@@ -5,14 +5,15 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Implantation CVC / Plomberie</title>
 <style>
-@font-face{font-family:'Plus Jakarta Sans';src:local('Plus Jakarta Sans');}
 :root{
   --orange:#ff7a30; --orange-dim:#ff7a3022; --turq:#22d3c5; --turq-dim:#22d3c522;
   --bg:#0e1116; --panel:#161b22; --panel2:#1d232c; --border:#2a323d;
   --text:#e9edf3; --muted:#8b96a5; --danger:#ff5c6c; --ok:#3ddc84;
   --radius:10px; --radius-lg:16px;
   --shadow:0 8px 24px rgba(0,0,0,.35);
-  --font-ui:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+  /* Pas de webfont distant (app 100% hors-ligne) : pile de polices systèmes soignée,
+     cohérente avec les outils professionnels (VS Code, Figma, Linear...). */
+  --font-ui:-apple-system,BlinkMacSystemFont,'Segoe UI Variable','Segoe UI','Inter',Roboto,'Helvetica Neue',Arial,sans-serif;
 }
 [data-theme="light"]{
   --bg:#f2f4f7; --panel:#ffffff; --panel2:#f7f8fa; --border:#dde2e8;
@@ -163,27 +164,27 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
     <span id="saveIndicator"></span>
     <button class="iconbtn" id="undoBtn" onclick="undo()" title="Annuler (Ctrl+Z)" disabled>↶</button>
     <button class="iconbtn" id="redoBtn" onclick="redo()" title="Rétablir (Ctrl+Y)" disabled>↷</button>
-    <button class="btn small" onclick="openProjectInfoModal()">ℹ️ Projet</button>
+    <button class="btn small" onclick="openProjectInfoModal()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 11h1v6h1"/></svg> Projet</button>
     <button class="btn small" onclick="newProject()">＋ Nouveau</button>
     <button class="btn small" onclick="document.getElementById('loadJsonInput').click()">Ouvrir</button>
     <input type="file" id="loadJsonInput" accept=".json" class="hidden" onchange="loadProjectFile(this.files[0])">
-    <button class="btn small" onclick="document.getElementById('importRepInput').click()" title="Importer des repères/débits">📥 Repères</button>
+    <button class="btn small" onclick="document.getElementById('importRepInput').click()" title="Importer des repères/débits"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M12 3v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5"/></svg> Repères</button>
     <input type="file" id="importRepInput" accept=".xlsx,.xls" class="hidden" onchange="importRepDebitFile(this.files[0])">
-    <button class="btn small" onclick="saveProjectFile()">💾 Enregistrer</button>
+    <button class="btn small" onclick="saveProjectFile()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M5 4h11l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 4v5h8V4"/><path d="M7 20v-6h10v6"/></svg> Enregistrer</button>
     <button class="btn small" onclick="toggleExportMenu(event)">⇩ Exporter</button>
     <div id="exportMenu" class="hidden" style="position:absolute;top:52px;right:16px;background:var(--panel);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow);padding:6px;z-index:50;min-width:220px;">
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportExcel()">📊 Excel — équipements &amp; réseaux</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportImage('2d')">🖼️ Image du plan 2D</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportImage('3d')">🖼️ Image de la vue 3D</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportImage('section')">🖼️ Image de la coupe active</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="openPrintModal()">🖨️ Impression du plan (PDF, A4→A0)</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-top:4px;" onclick="exportSummaryReport()">📋 Rapport de synthèse (PDF)</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="exportDXF()">📐 Export DXF (niveau actif)</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-top:4px;" onclick="exportGLTF()">📦 Export glTF/GLB (revue 3D)</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-top:4px;" onclick="exportIFC()">🏗️ Export IFC léger (revue chantier)</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-top:4px;" onclick="exportForChiffrage()">📤 Export pour chiffrage (désignations)</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportExcel()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M5 20V11M11 20V4M17 20v-8"/><path d="M3 20h18"/></svg> Excel — équipements &amp; réseaux</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportImage('2d')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="4" width="18" height="16" rx="1.5"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-5 5"/></svg> Image du plan 2D</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportImage('3d')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="4" width="18" height="16" rx="1.5"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-5 5"/></svg> Image de la vue 3D</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-bottom:4px;" onclick="exportImage('section')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="4" width="18" height="16" rx="1.5"/><circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-4 4-3-3-5 5"/></svg> Image de la coupe active</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="openPrintModal()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1"/><path d="M6 17v4h12v-4"/></svg> Impression du plan (PDF, A4→A0)</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-top:4px;" onclick="exportSummaryReport()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="6" y="4" width="12" height="17" rx="1.5"/><rect x="9" y="2.3" width="6" height="3.4" rx="1"/><path d="M9 11h6M9 15h6"/></svg> Rapport de synthèse (PDF)</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="exportDXF()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 20L14 4l6 16z"/><path d="M9 14h6"/></svg> Export DXF (niveau actif)</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-top:4px;" onclick="exportGLTF()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M3.5 7.5 12 3l8.5 4.5L12 12z"/><path d="M3.5 7.5v9L12 21l8.5-4.5v-9"/><path d="M12 12v9"/></svg> Export glTF/GLB (revue 3D)</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-top:4px;" onclick="exportIFC()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M5 21V9l6-4 6 4v12"/><path d="M9 21v-6h4v6"/><path d="M3 21h18"/></svg> Export IFC léger (revue chantier)</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;margin-top:4px;" onclick="exportForChiffrage()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M12 15V4"/><path d="M7.5 8.5 12 4l4.5 4.5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg> Export pour chiffrage (désignations)</button>
     </div>
-    <button class="iconbtn" id="themeBtn" onclick="toggleTheme()" title="Thème">🌙</button>
+    <button class="iconbtn" id="themeBtn" onclick="toggleTheme()" title="Thème"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M20 14.2A8.5 8.5 0 1 1 9.8 4a7 7 0 0 0 10.2 10.2z"/></svg></button>
   </div>
 </header>
 
@@ -192,9 +193,9 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
   <div class="side left">
 
     <div class="sidebar-tabs">
-      <button class="sidebar-tab active" id="sbTabDessiner" onclick="setSidebarTab('dessiner')">✏️ Dessiner</button>
-      <button class="sidebar-tab" id="sbTabBibliotheque" onclick="setSidebarTab('bibliotheque')">📚 Bibliothèque</button>
-      <button class="sidebar-tab" id="sbTabAffichage" onclick="setSidebarTab('affichage')">🖥️ Affichage</button>
+      <button class="sidebar-tab active" id="sbTabDessiner" onclick="setSidebarTab('dessiner')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 20l.9-4L16 4.9a1.6 1.6 0 0 1 2.3 0l.8.8a1.6 1.6 0 0 1 0 2.3L8 19l-4 1z"/><path d="M14.3 6.6l3.1 3.1"/></svg> Dessiner</button>
+      <button class="sidebar-tab" id="sbTabBibliotheque" onclick="setSidebarTab('bibliotheque')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 5.5A1.5 1.5 0 0 1 5.5 4H9v16H5.5A1.5 1.5 0 0 1 4 18.5z"/><path d="M9 4h5.5A1.5 1.5 0 0 1 16 5.5v13a1.5 1.5 0 0 1-1.5 1.5H9"/><path d="M16 6.3l3.6-.9a1 1 0 0 1 1.2.9l2 12.3a1 1 0 0 1-.8 1.1l-3.6.9"/></svg> Bibliothèque</button>
+      <button class="sidebar-tab" id="sbTabAffichage" onclick="setSidebarTab('affichage')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="4.5" width="18" height="12" rx="1.5"/><path d="M9 20h6M12 16.5V20"/></svg> Affichage</button>
     </div>
 
     <div class="sidebar-tab-content" data-tab="dessiner">
@@ -211,7 +212,7 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
       <div class="block-b">
         <div id="planStatus" style="font-size:11.5px;color:var(--muted);margin-bottom:6px;">Aucun niveau sélectionné</div>
         <input type="file" id="pdfInput" accept="application/pdf" class="hidden" onchange="onPdfChosen(this.files[0])">
-        <button class="btn small" style="width:100%;justify-content:center;" onclick="document.getElementById('pdfInput').click()">📄 Importer un plan PDF</button>
+        <button class="btn small" style="width:100%;justify-content:center;" onclick="document.getElementById('pdfInput').click()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1z"/><path d="M14 3v4h4"/></svg> Importer un plan PDF</button>
         <div style="font-size:10.5px;color:var(--muted);margin-top:6px;line-height:1.35;">Rendu haute résolution. Multi-pages + rotation disponibles après sélection.</div>
         <div id="pdfPageBox" class="hidden" style="margin-top:8px;">
           <label class="f">Page PDF</label>
@@ -224,7 +225,7 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
         <div id="calibBox" class="hidden" style="margin-top:8px;">
           <label class="f">Étalonnage</label>
           <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Cliquez 2 points sur une cote connue du plan, puis indiquez sa longueur réelle.</div>
-          <button class="btn small" id="calibBtn" style="width:100%;justify-content:center;" onclick="startCalibration()">📏 Étalonner ce plan</button>
+          <button class="btn small" id="calibBtn" style="width:100%;justify-content:center;" onclick="startCalibration()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 9v2.5M11 9v2.5M15 9v2.5M19 9v2.5"/></svg> Étalonner ce plan</button>
           <div class="row" style="margin-top:6px;">
             <div><label class="f">Longueur réelle (m)</label><input type="number" id="calibRealDist" step="0.01" placeholder="ex: 5.00"></div>
           </div>
@@ -237,9 +238,9 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
           <label class="f">Point d'insertion (superposition exacte entre niveaux)</label>
           <div style="font-size:10.5px;color:var(--muted);margin-bottom:6px;">Cliquez le même repère physique (angle de bâtiment, poteau…) sur chaque niveau pour qu'ils s'alignent exactement entre eux.</div>
           <div class="row">
-            <button class="btn small" style="justify-content:center;" onclick="startInsertionPlacement()">🎯 Point 1</button>
-            <button class="btn small" style="justify-content:center;" onclick="startInsertionPlacement2()">🎯 Point 2</button>
-            <button class="btn small ghost" style="justify-content:center;" onclick="clearInsertionPoint()">✕</button>
+            <button class="btn small" style="justify-content:center;" onclick="startInsertionPlacement()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg> Point 1</button>
+            <button class="btn small" style="justify-content:center;" onclick="startInsertionPlacement2()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="0.8" fill="currentColor" stroke="none"/></svg> Point 2</button>
+            <button class="btn small ghost" style="justify-content:center;" onclick="clearInsertionPoint()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg></button>
           </div>
           <div style="font-size:10.5px;color:var(--muted);margin-top:6px;">2 points = alignement + homothétie entre niveaux.</div>
         </div>
@@ -249,8 +250,8 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
     <div class="block" id="blockSymbols">
       <div class="block-h" onclick="toggleBlock('blockSymbols')"><h3>Équipements</h3><span class="chev">▾</span></div>
       <div class="block-b">
-        <input type="text" id="symbolSearch" placeholder="🔍 Rechercher un symbole…" oninput="renderSymbolPalette()" style="margin-bottom:8px;">
-        <label style="display:flex;align-items:center;gap:7px;font-size:11.5px;margin-bottom:8px;"><input type="checkbox" id="chkChainMode" onchange="chainMode=this.checked;"> 🔗 Pose en chaîne (rester sur l'outil après la pose)</label>
+        <input type="text" id="symbolSearch" placeholder="Rechercher un symbole…" oninput="renderSymbolPalette()" style="margin-bottom:8px;">
+        <label style="display:flex;align-items:center;gap:7px;font-size:11.5px;margin-bottom:8px;"><input type="checkbox" id="chkChainMode" onchange="chainMode=this.checked;"> <svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M9.5 14.5 14.5 9.5"/><path d="M8 10.5 6.4 12A3.6 3.6 0 0 0 11.5 17l1.5-1.5"/><path d="M16 13.5 17.6 12A3.6 3.6 0 0 0 12.5 7L11 8.5"/></svg> Pose en chaîne (rester sur l'outil après la pose)</label>
         <div id="recentSymbolsRow"></div>
         <div id="symbolCategories"></div>
       </div>
@@ -263,8 +264,8 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
       <div class="block-h" onclick="toggleBlock('blockLibrary')"><h3>Bibliothèque de symboles</h3><span class="chev">▾</span></div>
       <div class="block-b">
         <div style="font-size:11px;color:var(--muted);margin-bottom:8px;">Symboles personnalisés, partagés entre tous vos projets sur cet ordinateur.</div>
-        <button class="btn small" style="width:100%;justify-content:center;" onclick="openCreateSymbolModal()">➕ Créer un symbole</button>
-        <button class="btn small" style="width:100%;justify-content:center;margin-top:6px;" onclick="document.getElementById('importSvgInput').click()">📥 Importer un SVG</button>
+        <button class="btn small" style="width:100%;justify-content:center;" onclick="openCreateSymbolModal()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M12 5v14M5 12h14"/></svg> Créer un symbole</button>
+        <button class="btn small" style="width:100%;justify-content:center;margin-top:6px;" onclick="document.getElementById('importSvgInput').click()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M12 3v11"/><path d="M7.5 10.5 12 15l4.5-4.5"/><path d="M4 17.5V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-1.5"/></svg> Importer un SVG</button>
         <input type="file" id="importSvgInput" accept=".svg" class="hidden" onchange="importSvgSymbol(this.files[0])">
         <label class="f">Symboles personnalisés</label>
         <div id="customSymbolsList"></div>
@@ -297,7 +298,7 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
           <div><label class="f">Hauteur (m / sol niveau)</label><input type="number" id="netHeight" step="0.05" value="2.50"></div>
         </div>
         <div id="netDrawHint" class="hidden" style="font-size:10.5px;color:var(--turq);margin-top:6px;">Cliquez pour poser les points du tracé (plan 2D ou vue 3D). Double-clic ou clic droit pour terminer.</div>
-        <button class="btn small danger hidden" id="netCancelBtn" style="width:100%;justify-content:center;margin-top:6px;" onclick="cancelNetworkDraw()">✕ Annuler le tracé</button>
+        <button class="btn small danger hidden" id="netCancelBtn" style="width:100%;justify-content:center;margin-top:6px;" onclick="cancelNetworkDraw()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg> Annuler le tracé</button>
       </div>
     </div>
 
@@ -328,7 +329,7 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
         <label class="f">Longueur libre si pas de niveau adjacent (m)</label>
         <input type="number" id="vertFreeLength" step="0.1" value="3" title="Utilisée quand aucun niveau supérieur/inférieur n'existe : la verticalité se termine en bout libre à cette distance.">
         <div style="font-size:10px;color:var(--muted);margin:2px 0 4px;">Si un réseau existant passe près du point cliqué, la verticalité s'y raccroche automatiquement (piquage).</div>
-        <button class="btn small primary" style="width:100%;justify-content:center;margin-top:8px;" onclick="startVerticalPlacement()">📍 Placer sur le plan</button>
+        <button class="btn small primary" style="width:100%;justify-content:center;margin-top:8px;" onclick="startVerticalPlacement()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M12 21s7-6.7 7-11.5A7 7 0 1 0 5 9.5C5 14.3 12 21 12 21z"/><circle cx="12" cy="9.3" r="2.4"/></svg> Placer sur le plan</button>
         <div id="vertHint" class="hidden" style="font-size:10.5px;color:var(--turq);margin-top:6px;">Cliquez le point de départ sur le plan.</div>
       </div>
     </div>
@@ -341,9 +342,9 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
           <div><label class="f">Épaisseur (m)</label><input type="number" id="wallThickness" step="0.01" value="0.20"></div>
           <div><label class="f">Hauteur (m)</label><input type="number" id="wallHeight" step="0.05" placeholder="= hauteur niveau"></div>
         </div>
-        <button class="btn small primary" style="width:100%;justify-content:center;margin-top:8px;" onclick="selectWallTool()">🧱 Tracer un mur</button>
+        <button class="btn small primary" style="width:100%;justify-content:center;margin-top:8px;" onclick="selectWallTool()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="4" width="18" height="16"/><path d="M3 10h18M3 16h18M9 4v6M15 10v6M9 16v4"/></svg> Tracer un mur</button>
         <div id="wallDrawHint" class="hidden" style="font-size:10.5px;color:var(--turq);margin-top:6px;">Cliquez pour poser les points du mur. Double-clic ou clic droit pour terminer.</div>
-        <button class="btn small danger hidden" id="wallCancelBtn" style="width:100%;justify-content:center;margin-top:6px;" onclick="cancelWallDraw()">✕ Annuler le tracé</button>
+        <button class="btn small danger hidden" id="wallCancelBtn" style="width:100%;justify-content:center;margin-top:6px;" onclick="cancelWallDraw()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg> Annuler le tracé</button>
       </div>
     </div>
 
@@ -354,7 +355,7 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
       <div class="block-h" onclick="toggleBlock('blockBlocs')"><h3>Blocs réutilisables</h3><span class="chev">▾</span></div>
       <div class="block-b">
         <div style="font-size:11px;color:var(--muted);margin-bottom:6px;">Sélectionnez plusieurs équipements (cadre de sélection) puis enregistrez-les comme bloc réutilisable.</div>
-        <button class="btn small" style="width:100%;justify-content:center;" onclick="saveSelectionAsBlock()">💾 Enregistrer la sélection comme bloc</button>
+        <button class="btn small" style="width:100%;justify-content:center;" onclick="saveSelectionAsBlock()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M5 4h11l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 4v5h8V4"/><path d="M7 20v-6h10v6"/></svg> Enregistrer la sélection comme bloc</button>
         <div id="blocksList" style="margin-top:8px;"></div>
       </div>
     </div>
@@ -403,17 +404,17 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
       <canvas id="canvas2d"></canvas>
       <div class="empty-hint" id="emptyHint2d"><b>Aucun plan importé</b><span>Ajoutez un niveau puis importez un plan PDF pour commencer l'implantation.</span></div>
       <div class="view-toolbar">
-        <button class="btn small" id="toolNone" onclick="setTool('none')">🖐 Déplacer</button>
-        <button class="btn small" onclick="setTool('measure')">📏 Mesure rapide</button>
-        <button class="btn small" onclick="openCommandPalette()" title="Ctrl+K">🔍 Rechercher / Commandes</button>
-        <button class="btn small danger hidden" id="cancelPlaceBtn" onclick="setTool('none')">✕ Annuler la pose</button>
+        <button class="btn small" id="toolNone" onclick="setTool('none')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M9 13V6a1.3 1.3 0 0 1 2.6 0v5.5"/><path d="M11.6 11V5a1.3 1.3 0 0 1 2.6 0v6.3"/><path d="M14.2 11.3V6.8a1.3 1.3 0 0 1 2.6 0v7.7"/><path d="M16.8 12.5v-1.2a1.3 1.3 0 0 1 2.6 0v5.2a5.5 5.5 0 0 1-5.5 5.5h-2a5.5 5.5 0 0 1-4.6-2.5L5 15.8a1.4 1.4 0 0 1 2.2-1.7L9 16"/></svg> Déplacer</button>
+        <button class="btn small" onclick="setTool('measure')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 9v2.5M11 9v2.5M15 9v2.5M19 9v2.5"/></svg> Mesure rapide</button>
+        <button class="btn small" onclick="openCommandPalette()" title="Ctrl+K"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.8-4.8"/></svg> Rechercher / Commandes</button>
+        <button class="btn small danger hidden" id="cancelPlaceBtn" onclick="setTool('none')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M6 6l12 12"/><path d="M18 6L6 18"/></svg> Annuler la pose</button>
       </div>
       <div class="tool-dock" id="toolDock">
-        <button class="btn small" onclick="setTool('none')" title="Déplacer">🖐</button>
-        <button class="btn small" onclick="setTool('measure')" title="Mesure">📏</button>
+        <button class="btn small" onclick="setTool('none')" title="Déplacer"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M9 13V6a1.3 1.3 0 0 1 2.6 0v5.5"/><path d="M11.6 11V5a1.3 1.3 0 0 1 2.6 0v6.3"/><path d="M14.2 11.3V6.8a1.3 1.3 0 0 1 2.6 0v7.7"/><path d="M16.8 12.5v-1.2a1.3 1.3 0 0 1 2.6 0v5.2a5.5 5.5 0 0 1-5.5 5.5h-2a5.5 5.5 0 0 1-4.6-2.5L5 15.8a1.4 1.4 0 0 1 2.2-1.7L9 16"/></svg></button>
+        <button class="btn small" onclick="setTool('measure')" title="Mesure"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="9" width="18" height="6" rx="1"/><path d="M7 9v2.5M11 9v2.5M15 9v2.5M19 9v2.5"/></svg></button>
         <button class="btn small" onclick="selectNetworkTool('aer-circ')" title="Gaine Ø">○</button>
         <button class="btn small" onclick="selectNetworkTool('aer-rect')" title="Gaine □">▭</button>
-        <button class="btn small" onclick="selectWallTool()" title="Mur">🧱</button>
+        <button class="btn small" onclick="selectWallTool()" title="Mur"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="4" width="18" height="16"/><path d="M3 10h18M3 16h18M9 4v6M15 10v6M9 16v4"/></svg></button>
         <button class="btn small" onclick="document.getElementById('rightPanel').classList.toggle('open');document.getElementById('rightPanel').classList.toggle('hidden')">◧</button>
       </div>
       <div class="legend-box" id="legendBox"></div>
@@ -436,18 +437,18 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
       <canvas id="canvas3d"></canvas>
       <div class="empty-hint" id="emptyHint3d"><b>Rien à afficher en 3D</b><span>Positionnez des équipements et des réseaux dans le plan 2D : ils apparaîtront ici automatiquement.</span></div>
       <div class="view-toolbar">
-        <span style="font-size:11px;color:var(--muted);padding:6px 4px;">🖱️ Glisser : orbiter · molette : zoomer · clic droit : déplacer</span>
+        <span style="font-size:11px;color:var(--muted);padding:6px 4px;"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="7" y="3" width="10" height="16" rx="5"/><path d="M12 3v6"/></svg> Glisser : orbiter · molette : zoomer · clic droit : déplacer</span>
       </div>
       <div class="tool-dock" id="toolDock3d">
-        <button class="btn small" onclick="setTool('none')" title="Déplacer">🖐</button>
+        <button class="btn small" onclick="setTool('none')" title="Déplacer"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M9 13V6a1.3 1.3 0 0 1 2.6 0v5.5"/><path d="M11.6 11V5a1.3 1.3 0 0 1 2.6 0v6.3"/><path d="M14.2 11.3V6.8a1.3 1.3 0 0 1 2.6 0v7.7"/><path d="M16.8 12.5v-1.2a1.3 1.3 0 0 1 2.6 0v5.2a5.5 5.5 0 0 1-5.5 5.5h-2a5.5 5.5 0 0 1-4.6-2.5L5 15.8a1.4 1.4 0 0 1 2.2-1.7L9 16"/></svg></button>
         <button class="btn small" onclick="selectNetworkTool('aer-circ')" title="Gaine Ø">○</button>
         <button class="btn small" onclick="selectNetworkTool('aer-rect')" title="Gaine □">▭</button>
-        <button class="btn small" onclick="selectWallTool()" title="Mur">🧱</button>
+        <button class="btn small" onclick="selectWallTool()" title="Mur"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="4" width="18" height="16"/><path d="M3 10h18M3 16h18M9 4v6M15 10v6M9 16v4"/></svg></button>
         <button class="btn small" onclick="quickVertical('up')" title="Verticalité vers le niveau supérieur">↑</button>
         <button class="btn small" onclick="quickVertical('down')" title="Verticalité vers le niveau inférieur">↓</button>
       </div>
       <div class="view-toolbar right-tools">
-        <button class="btn small" onclick="resetCamera3d()">🎥 Réinitialiser la vue</button>
+        <button class="btn small" onclick="resetCamera3d()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="3" y="7" width="12" height="10" rx="1.5"/><path d="M15 10.5l6-3v9l-6-3z"/></svg> Réinitialiser la vue</button>
       </div>
       <div class="zoomrow" style="left:auto;right:12px;bottom:12px;">
         <label style="display:flex;align-items:center;gap:6px;font-size:11px;color:var(--muted);white-space:nowrap;">
@@ -461,7 +462,7 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
       <canvas id="canvasSection"></canvas>
       <div class="empty-hint" id="emptyHintSection"><b>Aucune ligne de coupe</b><span>Dans l'onglet Plan 2D, activez l'outil « Ligne de coupe » pour définir une coupe.</span></div>
       <div class="view-toolbar">
-        <button class="btn small" id="toolSectionLine" onclick="setTool('section')">✂️ Nouvelle ligne de coupe (sur le plan 2D)</button>
+        <button class="btn small" id="toolSectionLine" onclick="setTool('section')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><circle cx="6.2" cy="6.2" r="2.3"/><circle cx="6.2" cy="17.8" r="2.3"/><path d="M8 7.8 19.5 19.3M19.5 4.7 8 16.2"/></svg> Nouvelle ligne de coupe (sur le plan 2D)</button>
         <select class="section-select" id="sectionSelect" onchange="onSectionSelectChange()"></select>
       </div>
       <div class="view-toolbar" style="top:auto;bottom:12px;left:12px;">
@@ -549,7 +550,7 @@ table.mini td{padding:5px 6px;border-bottom:1px solid var(--border);}
     <div id="printPageEstimate" style="font-size:10.5px;color:var(--muted);margin-top:8px;"></div>
     <div class="row" style="margin-top:16px;">
       <button class="btn" style="width:100%;justify-content:center;" onclick="closePrintModal()">Annuler</button>
-      <button class="btn primary" style="width:100%;justify-content:center;" onclick="runPrintExport()">🖨️ Générer le PDF</button>
+      <button class="btn primary" style="width:100%;justify-content:center;" onclick="runPrintExport()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M6 9V3h12v6"/><rect x="4" y="9" width="16" height="8" rx="1"/><path d="M6 17v4h12v-4"/></svg> Générer le PDF</button>
     </div>
   </div>
 </div>
@@ -2751,9 +2752,9 @@ function renderLevelsList(){
     <div class="level-item ${l.id===project.activeLevelId?'active':''}" onclick="selectLevel('${l.id}')">
       <div class="lname">${escapeHtml(l.name)}</div>
       <div class="lz">${l.floorZ.toFixed(2)}m / +${l.height.toFixed(2)}m</div>
-      <button class="iconbtn" style="width:22px;height:22px;font-size:11px;" onclick="event.stopPropagation();renameLevel('${l.id}')">✎</button>
+      <button class="iconbtn" style="width:22px;height:22px;font-size:11px;" onclick="event.stopPropagation();renameLevel('${l.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 20l.9-4L16 4.9a1.6 1.6 0 0 1 2.3 0l.8.8a1.6 1.6 0 0 1 0 2.3L8 19l-4 1z"/><path d="M14.3 6.6l3.1 3.1"/></svg></button>
       <button class="iconbtn" style="width:22px;height:22px;font-size:11px;" onclick="event.stopPropagation();duplicateLevel('${l.id}')" title="Dupliquer le niveau">⎘</button>
-      <button class="iconbtn" style="width:22px;height:22px;font-size:11px;" onclick="event.stopPropagation();deleteLevel('${l.id}')">🗑</button>
+      <button class="iconbtn" style="width:22px;height:22px;font-size:11px;" onclick="event.stopPropagation();deleteLevel('${l.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg></button>
     </div>`).join('');
 }
 
@@ -2837,7 +2838,7 @@ async function storeLevelPlan(lvl, dataUrl, widthPx, heightPx){
     console.warn('IDB fail', e);
     lvl.plan={ dataUrl, widthPx, heightPx, storageKey };
     const t=document.getElementById('toast2d');
-    if(t){ t.textContent='⚠️ IndexedDB indisponible — plan en mémoire, enregistrez souvent.'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),4000); }
+    if(t){ t.innerHTML='<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M10.3 3.9 1.8 18.5A1.5 1.5 0 0 0 3.1 21h17.8a1.5 1.5 0 0 0 1.3-2.5L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v5"/><circle cx="12" cy="17.2" r="0.6" fill="currentColor" stroke="none"/></svg> IndexedDB indisponible — plan en mémoire, enregistrez souvent.'; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),4000); }
   }
   return storageKey;
 }
@@ -3111,7 +3112,11 @@ function draw2d(){
   ctx2d.imageSmoothingEnabled = true; ctx2d.imageSmoothingQuality = 'high';
   ctx2d.clearRect(0,0,rect.width,rect.height);
   const lvl = activeLevel();
-  document.getElementById('emptyHint2d').style.display = (lvl && lvl.plan) ? 'none' : 'flex';
+  const lvlHasContent = !!(lvl && (lvl.plan
+    || project.objects.some(o=>o.levelId===lvl.id)
+    || project.networks.some(n=>n.levelId===lvl.id)
+    || project.walls.some(w=>w.levelId===lvl.id)));
+  document.getElementById('emptyHint2d').style.display = lvlHasContent ? 'none' : 'flex';
   updateStatusBar();
   renderMinimap();
   if (!lvl){ return; }
@@ -3746,12 +3751,12 @@ function searchEquipmentAndNetworks(q){
     const sym = findSymbol(o.type);
     const lvl = project.levels.find(l=>l.id===o.levelId);
     const hay = (o.label+' '+(o.reference||'')+' '+(sym?sym.label:o.type)).toLowerCase();
-    if (hay.includes(q)) results.push({ id:'goto-obj-'+o.id, label:`📍 ${o.label} — ${sym?sym.label:o.type}${lvl?' ('+lvl.name+')':''}`, run:()=>gotoObject(o.id) });
+    if (hay.includes(q)) results.push({ id:'goto-obj-'+o.id, label:`<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M12 21s7-6.7 7-11.5A7 7 0 1 0 5 9.5C5 14.3 12 21 12 21z"/><circle cx="12" cy="9.3" r="2.4"/></svg> ${o.label} — ${sym?sym.label:o.type}${lvl?' ('+lvl.name+')':''}`, run:()=>gotoObject(o.id) });
   });
   project.networks.forEach(n=>{
     const lvl = project.levels.find(l=>l.id===n.levelId);
     const hay = (networkLabel(n.type)+' '+(n.dim||'')).toLowerCase();
-    if (hay.includes(q)) results.push({ id:'goto-net-'+n.id, label:`🔧 ${networkLabel(n.type)} ${n.dim||''}${lvl?' ('+lvl.name+')':''}`, run:()=>gotoNetwork(n.id) });
+    if (hay.includes(q)) results.push({ id:'goto-net-'+n.id, label:`<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M14.7 6.3a4 4 0 0 1-5.4 5.4L5 16l3 3 4.3-4.3a4 4 0 0 1 5.4-5.4l-2.2 2.2-1.8-.6-.6-1.8z"/></svg> ${networkLabel(n.type)} ${n.dim||''}${lvl?' ('+lvl.name+')':''}`, run:()=>gotoNetwork(n.id) });
   });
   return results;
 }
@@ -4351,16 +4356,16 @@ function showContextMenu(clientX, clientY, kind, id){
       <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('select')">Propriétés</button>
       <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('rotate90')">↻ Tourner 90°</button>
       <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('duplicate')">⎘ Dupliquer</button>
-      <button class="btn ghost small danger" style="width:100%;justify-content:flex-start;" onclick="ctxAction('delete')">🗑 Supprimer</button>`;
+      <button class="btn ghost small danger" style="width:100%;justify-content:flex-start;" onclick="ctxAction('delete')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg> Supprimer</button>`;
   } else {
     html = `
       <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('select')">Propriétés</button>
       <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('reverseNet')">↔ Inverser le tracé</button>
       <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('insertVertex')">＋ Insérer un sommet</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('deleteVertex')">✂ Supprimer le sommet</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('splitNet')">✂ Scinder ici</button>
-      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('joinNet')">🔗 Joindre au proche</button>
-      <button class="btn ghost small danger" style="width:100%;justify-content:flex-start;" onclick="ctxAction('delete')">🗑 Supprimer</button>`;
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('deleteVertex')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><circle cx="6.2" cy="6.2" r="2.3"/><circle cx="6.2" cy="17.8" r="2.3"/><path d="M8 7.8 19.5 19.3M19.5 4.7 8 16.2"/></svg> Supprimer le sommet</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('splitNet')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><circle cx="6.2" cy="6.2" r="2.3"/><circle cx="6.2" cy="17.8" r="2.3"/><path d="M8 7.8 19.5 19.3M19.5 4.7 8 16.2"/></svg> Scinder ici</button>
+      <button class="btn ghost small" style="width:100%;justify-content:flex-start;" onclick="ctxAction('joinNet')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M9.5 14.5 14.5 9.5"/><path d="M8 10.5 6.4 12A3.6 3.6 0 0 0 11.5 17l1.5-1.5"/><path d="M16 13.5 17.6 12A3.6 3.6 0 0 0 12.5 7L11 8.5"/></svg> Joindre au proche</button>
+      <button class="btn ghost small danger" style="width:100%;justify-content:flex-start;" onclick="ctxAction('delete')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg> Supprimer</button>`;
   }
   menu.innerHTML = html;
   menu.style.left = (clientX-rect.left)+'px';
@@ -4956,7 +4961,7 @@ function renderSymbolPalette(){
               <svg viewBox="0 0 26 26" fill="none" stroke="currentColor" stroke-width="1.6">${e.item.icon()}</svg>
               <span>${escapeHtml(e.item.label)}</span>
             </span>
-            <button class="iconbtn" style="position:absolute;top:1px;right:1px;width:16px;height:16px;font-size:9px;padding:0;" title="Personnaliser" onclick="event.stopPropagation();openSymbolOverrideModal('${e.item.id}')">✎</button>
+            <button class="iconbtn" style="position:absolute;top:1px;right:1px;width:16px;height:16px;font-size:9px;padding:0;" title="Personnaliser" onclick="event.stopPropagation();openSymbolOverrideModal('${e.item.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 20l.9-4L16 4.9a1.6 1.6 0 0 1 2.3 0l.8.8a1.6 1.6 0 0 1 0 2.3L8 19l-4 1z"/><path d="M14.3 6.6l3.1 3.1"/></svg></button>
           </div>`;}).join('')}
       </div>
     </div>`).join('');
@@ -4989,7 +4994,7 @@ function renderCustomSymbolsList(){
     const s = lib.symbols[id];
     return `<div class="net-btn" style="justify-content:space-between;">
       <span style="flex:1;">${escapeHtml(s.label)} <span class="badge">${s.category.toUpperCase()}</span></span>
-      <button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteCustomSymbol('${id}')">🗑</button>
+      <button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteCustomSymbol('${id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg></button>
     </div>`;
   }).join('');
 }
@@ -5171,7 +5176,7 @@ function updatePropsPanel(){
         </div>
       </div>
       <div class="row" style="margin-top:12px;">
-        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteMultiSelection()">🗑 Supprimer la sélection</button>
+        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteMultiSelection()"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg> Supprimer la sélection</button>
       </div>`;
     return;
   }
@@ -5211,7 +5216,7 @@ function updatePropsPanel(){
       <input type="text" value="${escapeHtml(o.reference||'')}" placeholder="ex: référence fournisseur" onchange="updateObj('${o.id}',{reference:this.value||null})">
       <div class="row" style="margin-top:12px;">
         <button class="btn small" style="width:100%;justify-content:center;" onclick="duplicateObj('${o.id}')">⎘ Dupliquer</button>
-        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteObj('${o.id}')">🗑 Supprimer</button>
+        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteObj('${o.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg> Supprimer</button>
       </div>
       <button class="btn small" style="width:100%;justify-content:center;margin-top:6px;" onclick="repeatObjSeries('${o.id}')">⋯ Répéter en série</button>`;
   } else if (selection.kind==='vertical'){
@@ -5230,9 +5235,9 @@ function updatePropsPanel(){
       <input type="text" value="${escapeHtml(v.dim||'')}" onchange="updateVertical('${v.id}',{dim:this.value})">
       <div class="row">${lowerField}${upperField}</div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:10px;">Relie <b style="color:var(--text)">${escapeHtml(lLow?lLow.name:'bout libre')}</b> (bas) à <b style="color:var(--text)">${escapeHtml(lUp?lUp.name:'bout libre')}</b> (haut)</div>
-      ${(!lLow||!lUp) ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px;">💡 Se prolongera automatiquement si un niveau ${!lLow?'inférieur':'supérieur'} est créé plus tard, en repassant par « Placer sur le plan ».</div>` : ''}
+      ${(!lLow||!lUp) ? `<div style="font-size:10.5px;color:var(--muted);margin-top:2px;"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.5.4.8 1 .8 1.6V16h5.4v-.5c0-.6.3-1.2.8-1.6A6 6 0 0 0 12 3z"/></svg> Se prolongera automatiquement si un niveau ${!lLow?'inférieur':'supérieur'} est créé plus tard, en repassant par « Placer sur le plan ».</div>` : ''}
       <div class="row" style="margin-top:12px;">
-        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteVertical('${v.id}')">🗑 Supprimer</button>
+        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteVertical('${v.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg> Supprimer</button>
       </div>`;
   } else if (selection.kind==='wall'){
     const w = project.walls.find(x=>x.id===selection.id);
@@ -5247,7 +5252,7 @@ function updatePropsPanel(){
       </div>
       <div style="font-size:11.5px;color:var(--muted);margin-top:10px;">Longueur totale : <b style="color:var(--text)">${lvl?px2m(lvl,totalLen).toFixed(2):'?'} m</b></div>
       <div class="row" style="margin-top:12px;">
-        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteWall('${w.id}')">🗑 Supprimer</button>
+        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteWall('${w.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg> Supprimer</button>
       </div>`;
   } else if (selection.kind==='network'){
     const n = project.networks.find(x=>x.id===selection.id);
@@ -5282,15 +5287,15 @@ function updatePropsPanel(){
       <div style="font-size:11.5px;color:var(--muted);margin-top:2px;">Points : ${n.points.length} · Connecté : ${n.startConn?'départ ':''}${n.endConn?'arrivée':''}${(!n.startConn&&!n.endConn)?'—':''}</div>
       <button class="btn small" style="width:100%;justify-content:center;margin-top:8px;" onclick="updateNet('${n.id}',{flowReversed:${!n.flowReversed}})">↔ Inverser le sens d'écoulement</button>
       <button class="btn small" style="width:100%;justify-content:center;margin-top:6px;" onclick="reverseNetworkGeometry('${n.id}')">↩ Inverser le tracé</button>
-      <button class="btn small" style="width:100%;justify-content:center;margin-top:6px;" onclick="joinNetworkWithNearest('${n.id}')">🔗 Joindre au réseau proche</button>
+      <button class="btn small" style="width:100%;justify-content:center;margin-top:6px;" onclick="joinNetworkWithNearest('${n.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M9.5 14.5 14.5 9.5"/><path d="M8 10.5 6.4 12A3.6 3.6 0 0 0 11.5 17l1.5-1.5"/><path d="M16 13.5 17.6 12A3.6 3.6 0 0 0 12.5 7L11 8.5"/></svg> Joindre au réseau proche</button>
       <div style="font-size:10.5px;color:var(--muted);margin-top:8px;line-height:1.35;">Édition : glisser poignée · double-clic = sommet · clic droit = scinder/joindre.</div>
-      <label style="display:flex;align-items:center;gap:7px;font-size:12px;margin-top:8px;"><input type="checkbox" ${n.calorifuge?'checked':''} onchange="updateNet('${n.id}',{calorifuge:this.checked})"> 🧥 Calorifugé</label>
+      <label style="display:flex;align-items:center;gap:7px;font-size:12px;margin-top:8px;"><input type="checkbox" ${n.calorifuge?'checked':''} onchange="updateNet('${n.id}',{calorifuge:this.checked})"> <svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M12 3l7 3v6c0 5-3.5 8-7 9-3.5-1-7-4-7-9V6z"/></svg> Calorifugé</label>
       <div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border);">
-        <label class="f">🔗 Connectivité détectée automatiquement</label>
+        <label class="f"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M9.5 14.5 14.5 9.5"/><path d="M8 10.5 6.4 12A3.6 3.6 0 0 0 11.5 17l1.5-1.5"/><path d="M16 13.5 17.6 12A3.6 3.6 0 0 0 12.5 7L11 8.5"/></svg> Connectivité détectée automatiquement</label>
         <div style="max-height:130px;overflow-y:auto;border:1px solid var(--border);border-radius:7px;padding:6px;">
           ${autoEquip.length ? autoEquip.map(o=>`
             <div style="font-size:11.5px;padding:2px 0;cursor:pointer;" onclick="selectFromList('object','${o.id}')">
-              📍 ${escapeHtml(o.label)} ${o.debit?`<span style="color:var(--muted);">(${o.debit} ${o.category==='cvc'?'m³/h':'l/h'})</span>`:''}
+              <svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M12 21s7-6.7 7-11.5A7 7 0 1 0 5 9.5C5 14.3 12 21 12 21z"/><circle cx="12" cy="9.3" r="2.4"/></svg> ${escapeHtml(o.label)} ${o.debit?`<span style="color:var(--muted);">(${o.debit} ${o.category==='cvc'?'m³/h':'l/h'})</span>`:''}
             </div>`).join('') : '<div class="prop-empty">Aucune bouche détectée en aval (tracez le réseau jusqu\'à la connexion de la bouche)</div>'}
         </div>
         ${legacyEquip.length ? `<label class="f">Associations manuelles (héritées)</label>
@@ -5302,11 +5307,11 @@ function updatePropsPanel(){
             </label>`).join('')}
         </div>` : ''}
         <div style="font-size:12px;margin-top:6px;">Débit cumulé : <b>${debit ? debit.toFixed(0)+(aer?' m³/h':' l/h') : '—'}</b>${auto.debit>0?' <span style="color:var(--ok);font-size:10.5px;">(auto)</span>':''}</div>
-        ${aer ? `<div style="font-size:12px;margin-top:2px;">Vitesse : <b style="color:${velColor}">${vel!=null?vel.toFixed(1)+' m/s':'—'}</b>${velStat==='bad'?' ⚠️ hors plage':velStat==='warn'?' — à surveiller':''}</div>` : ''}
-        <button class="btn small" style="width:100%;justify-content:center;margin-top:6px;" onclick="calcNetworkDiameter('${n.id}')">🧮 ${aer?'Calculer le diamètre':'Suggérer le DN'}</button>
+        ${aer ? `<div style="font-size:12px;margin-top:2px;">Vitesse : <b style="color:${velColor}">${vel!=null?vel.toFixed(1)+' m/s':'—'}</b>${velStat==='bad'?' <svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M10.3 3.9 1.8 18.5A1.5 1.5 0 0 0 3.1 21h17.8a1.5 1.5 0 0 0 1.3-2.5L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v5"/><circle cx="12" cy="17.2" r="0.6" fill="currentColor" stroke="none"/></svg> hors plage':velStat==='warn'?' — à surveiller':''}</div>` : ''}
+        <button class="btn small" style="width:100%;justify-content:center;margin-top:6px;" onclick="calcNetworkDiameter('${n.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 7h8"/><circle cx="8" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="12" r="1" fill="currentColor" stroke="none"/><circle cx="8" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="12" cy="16" r="1" fill="currentColor" stroke="none"/><circle cx="16" cy="16" r="1" fill="currentColor" stroke="none"/></svg> ${aer?'Calculer le diamètre':'Suggérer le DN'}</button>
       </div>
       <div class="row" style="margin-top:12px;">
-        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteNet('${n.id}')">🗑 Supprimer</button>
+        <button class="btn small danger" style="width:100%;justify-content:center;" onclick="deleteNet('${n.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg> Supprimer</button>
       </div>`;
     populateDimSelect('propDimSelect','propDimCustom', n.type);
     document.getElementById('propDimSelect').value = STANDARD_DIAMS[n.type] && STANDARD_DIAMS[n.type].includes(n.dim) ? n.dim : '__custom__';
@@ -5419,8 +5424,8 @@ function renderBlocksList(){
   if (!names.length){ el.innerHTML = '<div class="prop-empty">Aucun bloc enregistré</div>'; return; }
   el.innerHTML = names.map(name=>`
     <div class="net-btn" style="justify-content:space-between;">
-      <span onclick="startBlockPlacement('${escapeHtml(name)}')" style="cursor:pointer;flex:1;">📦 ${escapeHtml(name)} (${store[name].length})</span>
-      <button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteBlock('${escapeHtml(name)}')">🗑</button>
+      <span onclick="startBlockPlacement('${escapeHtml(name)}')" style="cursor:pointer;flex:1;"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M3.5 7.5 12 3l8.5 4.5L12 12z"/><path d="M3.5 7.5v9L12 21l8.5-4.5v-9"/><path d="M12 12v9"/></svg> ${escapeHtml(name)} (${store[name].length})</span>
+      <button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteBlock('${escapeHtml(name)}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg></button>
     </div>`).join('');
 }
 function deleteBlock(name){
@@ -5543,7 +5548,7 @@ function renderObjList(){
   body.innerHTML = `<table class="mini"><tr><th>Désignation</th><th>Cat.</th><th></th></tr>${objs.map(o=>`
     <tr style="cursor:pointer;${selection&&selection.id===o.id?'background:var(--orange-dim)':''}" onclick="selectFromList('object','${o.id}')">
       <td>${escapeHtml(o.label)}</td><td><span class="badge">${o.category}</span></td>
-      <td><button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteObj('${o.id}')">🗑</button></td>
+      <td><button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteObj('${o.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg></button></td>
     </tr>`).join('')}</table>`;
 }
 function renderNetList(){
@@ -5556,7 +5561,7 @@ function renderNetList(){
     <tr style="cursor:pointer;${selection&&selection.id===n.id?'background:var(--orange-dim)':''}" onclick="selectFromList('network','${n.id}')">
       <td><span class="swatch" style="display:inline-block;margin-right:5px;background:${netColor(n)}"></span>${networkLabel(n.type)}</td>
       <td>${escapeHtml(n.dim||'—')}</td>
-      <td><button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteNet('${n.id}')">🗑</button></td>
+      <td><button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteNet('${n.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg></button></td>
     </tr>`).join('')}</table>`;
 }
 function renderVertList(){
@@ -5570,7 +5575,7 @@ function renderVertList(){
     return `<tr style="cursor:pointer;${selection&&selection.id===v.id?'background:var(--orange-dim)':''}" onclick="selectFromList('vertical','${v.id}')">
       <td><span class="swatch" style="display:inline-block;margin-right:5px;background:${netColor(v)}"></span>${networkLabel(v.type)}</td>
       <td>${isLower?'↑ monte':'↓ descend'}</td>
-      <td><button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteVertical('${v.id}')">🗑</button></td>
+      <td><button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteVertical('${v.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg></button></td>
     </tr>`;}).join('')}</table>`;
 }
 function renderWallList(){
@@ -5584,7 +5589,7 @@ function renderWallList(){
     return `<tr style="cursor:pointer;${selection&&selection.id===w.id?'background:var(--orange-dim)':''}" onclick="selectFromList('wall','${w.id}')">
       <td>${((w.thickness||0.20)*100).toFixed(0)} cm</td>
       <td>${px2m(lvl,totalLen).toFixed(2)} m</td>
-      <td><button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteWall('${w.id}')">🗑</button></td>
+      <td><button class="iconbtn" style="width:20px;height:20px;font-size:10px;" onclick="event.stopPropagation();deleteWall('${w.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M4 7h16"/><path d="M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/><path d="M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13"/><path d="M10 11v6M14 11v6"/></svg></button></td>
     </tr>`;}).join('')}</table>`;
 }
 function refreshCompareLevelSelect(){
@@ -5639,11 +5644,11 @@ function renderCoherencePanel(){
   let html = '';
   if (unconnected.length){
     html += `<div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:800;margin-bottom:4px;">Équipements non raccordés</div>`;
-    html += unconnected.map(o=>`<div style="font-size:12px;padding:4px 2px;cursor:pointer;color:var(--danger);" onclick="selectFromList('object','${o.id}')">⚠️ ${escapeHtml(o.label)}</div>`).join('');
+    html += unconnected.map(o=>`<div style="font-size:12px;padding:4px 2px;cursor:pointer;color:var(--danger);" onclick="selectFromList('object','${o.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M10.3 3.9 1.8 18.5A1.5 1.5 0 0 0 3.1 21h17.8a1.5 1.5 0 0 0 1.3-2.5L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v5"/><circle cx="12" cy="17.2" r="0.6" fill="currentColor" stroke="none"/></svg> ${escapeHtml(o.label)}</div>`).join('');
   }
   if (dangling.length){
     html += `<div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:800;margin:8px 0 4px;">Réseaux non raccordés</div>`;
-    html += dangling.map(d=>`<div style="font-size:12px;padding:4px 2px;cursor:pointer;color:var(--danger);" onclick="selectFromList('network','${d.net.id}')">⚠️ ${networkLabel(d.net.type)} (${d.end})</div>`).join('');
+    html += dangling.map(d=>`<div style="font-size:12px;padding:4px 2px;cursor:pointer;color:var(--danger);" onclick="selectFromList('network','${d.net.id}')"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M10.3 3.9 1.8 18.5A1.5 1.5 0 0 0 3.1 21h17.8a1.5 1.5 0 0 0 1.3-2.5L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v5"/><circle cx="12" cy="17.2" r="0.6" fill="currentColor" stroke="none"/></svg> ${networkLabel(d.net.type)} (${d.end})</div>`).join('');
   }
   body.innerHTML = html;
 }
@@ -5681,7 +5686,7 @@ function renderBilanAeraulique(){
       <tr><th>Reprise (niveau)</th><td>${rep.toFixed(0)} m³/h</td></tr>
     </table>
     <div style="font-size:12px;margin-top:8px;">Écart : <b style="color:${color}">${delta>=0?'+':''}${delta.toFixed(0)} m³/h (${pct.toFixed(0)}%)</b></div>
-    ${pct>15?'<div style="font-size:11px;color:var(--danger);margin-top:4px;">⚠️ Déséquilibre important</div>':''}
+    ${pct>15?'<div style="font-size:11px;color:var(--danger);margin-top:4px;"><svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M10.3 3.9 1.8 18.5A1.5 1.5 0 0 0 3.1 21h17.8a1.5 1.5 0 0 0 1.3-2.5L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v5"/><circle cx="12" cy="17.2" r="0.6" fill="currentColor" stroke="none"/></svg> Déséquilibre important</div>':''}
     ${byCentral}
     ${issues.length?`<div style="font-size:10.5px;color:var(--muted);text-transform:uppercase;font-weight:800;margin:10px 0 4px;">Alertes techniques</div>`+issues.map(i=>`<div style="font-size:11.5px;color:${i.level==='bad'?'var(--danger)':'#ffd166'};padding:3px 0;">• ${escapeHtml(i.msg)}</div>`).join(''):''}`;
 }
@@ -5845,7 +5850,7 @@ function toggleTheme(){
   const html = document.documentElement;
   const next = html.getAttribute('data-theme')==='dark' ? 'light' : 'dark';
   html.setAttribute('data-theme', next);
-  document.getElementById('themeBtn').textContent = next==='dark' ? '🌙' : '☀️';
+  document.getElementById('themeBtn').innerHTML = next==='dark' ? '<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M20 14.2A8.5 8.5 0 1 1 9.8 4a7 7 0 0 0 10.2 10.2z"/></svg>' : '<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M3 12h2.2M18.8 12H21M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>';
   localStorage.setItem('implantation_cvc_theme', next);
   draw2d();
 }
@@ -6253,13 +6258,28 @@ function ensure3d(){
   const canvas = document.getElementById('canvas3d');
   three.renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:true, preserveDrawingBuffer:true});
   three.renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  three.renderer.shadowMap.enabled = true;
+  three.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  if (THREE.SRGBColorSpace) three.renderer.outputColorSpace = THREE.SRGBColorSpace;
+  else if ('outputEncoding' in three.renderer && THREE.sRGBEncoding) three.renderer.outputEncoding = THREE.sRGBEncoding;
+  three.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  three.renderer.toneMappingExposure = 1.05;
   three.scene = new THREE.Scene();
+  three.scene.background = new THREE.Color(0x11151b);
+  three.scene.fog = new THREE.Fog(0x11151b, 30, 90);
   three.camera = new THREE.PerspectiveCamera(50, 1, 0.05, 500);
   three.controls = new THREE.OrbitControls(three.camera, three.renderer.domElement);
   three.controls.enableDamping = true; three.controls.dampingFactor=0.08;
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x30343c, 1.0); three.scene.add(hemi);
-  const dir = new THREE.DirectionalLight(0xffffff, 0.9); dir.position.set(8,14,6); three.scene.add(dir);
-  const dir2 = new THREE.DirectionalLight(0xffffff, 0.35); dir2.position.set(-6,8,-8); three.scene.add(dir2);
+  const hemi = new THREE.HemisphereLight(0xc9d6e8, 0x20242c, 0.85); three.scene.add(hemi);
+  const dir = new THREE.DirectionalLight(0xfff3e0, 1.15); dir.position.set(10,16,7);
+  dir.castShadow = true;
+  dir.shadow.mapSize.set(2048,2048);
+  dir.shadow.camera.near = 1; dir.shadow.camera.far = 60;
+  dir.shadow.camera.left = -22; dir.shadow.camera.right = 22;
+  dir.shadow.camera.top = 22; dir.shadow.camera.bottom = -22;
+  dir.shadow.bias = -0.0015; dir.shadow.normalBias = 0.02;
+  three.scene.add(dir); three.scene.add(dir.target);
+  const dir2 = new THREE.DirectionalLight(0xaecbff, 0.28); dir2.position.set(-8,10,-9); three.scene.add(dir2);
   draftGroup3d = new THREE.Group(); three.scene.add(draftGroup3d);
   setupCanvas3dInteractions(canvas);
   resetCamera3d();
@@ -6347,6 +6367,21 @@ function resetCamera3d(){
   three.controls.target.set(cx,cy,cz);
   three.controls.update();
 }
+function computeLevelBoundsXZ(lvl){
+  const pts=[];
+  if (lvl.plan && lvl.calibration){
+    const w0=planToWorld(lvl,0,0), w1=planToWorld(lvl,lvl.plan.widthPx,lvl.plan.heightPx);
+    pts.push({x:w0.x,z:w0.z},{x:w1.x,z:w1.z});
+  }
+  project.objects.filter(o=>o.levelId===lvl.id).forEach(o=>{ const w=planToWorld(lvl,o.x,o.y); pts.push({x:w.x,z:w.z}); });
+  project.networks.filter(n=>n.levelId===lvl.id).forEach(n=> n.points.forEach(p=>{ const w=planToWorld(lvl,p.x,p.y); pts.push({x:w.x,z:w.z}); }));
+  project.walls.filter(w=>w.levelId===lvl.id).forEach(wall=> wall.points.forEach(p=>{ const w=planToWorld(lvl,p.x,p.y); pts.push({x:w.x,z:w.z}); }));
+  if (!pts.length) return { cx:0, cz:0, w:10, d:10 };
+  const minX=Math.min(...pts.map(p=>p.x)), maxX=Math.max(...pts.map(p=>p.x));
+  const minZ=Math.min(...pts.map(p=>p.z)), maxZ=Math.max(...pts.map(p=>p.z));
+  const pad = 3;
+  return { cx:(minX+maxX)/2, cz:(minZ+maxZ)/2, w:Math.max(maxX-minX+pad*2, 8), d:Math.max(maxZ-minZ+pad*2, 8) };
+}
 function computeSceneBounds(){
   let minX=-3,maxX=3,minZ=-3,maxZ=3,minY=0,maxY=3;
   if (project.levels.length){
@@ -6408,19 +6443,34 @@ function build3dScene(){
   const hasContent = project.objects.length>0 || project.networks.length>0 || project.walls.length>0 || project.verticals.length>0;
   document.getElementById('emptyHint3d').style.display = hasContent ? 'none':'flex';
 
-  // sols par niveau : texture du plan PDF en transparence, ou fond neutre si désactivé
+  // sols par niveau : texture du plan PDF en transparence, ou grille neutre de référence
+  // (toujours affichée, même sans plan importé, pour garder la scène 3D lisible)
   project.levels.forEach(lvl=>{
-    if (!lvl.plan || !lvl.calibration) return;
-    const c0 = planToWorld(lvl, 0, 0), c1 = planToWorld(lvl, lvl.plan.widthPx, lvl.plan.heightPx);
-    const w = Math.abs(c1.x-c0.x), d = Math.abs(c1.z-c0.z);
-    const cx = (c0.x+c1.x)/2, cz = (c0.z+c1.z)/2;
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(w,d), makeFloorMaterial(lvl));
-    floor.rotation.x = -Math.PI/2;
-    floor.position.set(cx, lvl.floorZ, cz);
-    contentGroup.add(floor);
-    if (!showPlanTextures){
-      const grid = new THREE.GridHelper(Math.max(w,d), Math.round(Math.max(w,d)), 0x444d59, 0x333a44);
-      grid.position.set(cx, lvl.floorZ+0.002, cz);
+    if (lvl.plan && lvl.calibration){
+      const c0 = planToWorld(lvl, 0, 0), c1 = planToWorld(lvl, lvl.plan.widthPx, lvl.plan.heightPx);
+      const w = Math.abs(c1.x-c0.x), d = Math.abs(c1.z-c0.z);
+      const cx = (c0.x+c1.x)/2, cz = (c0.z+c1.z)/2;
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(w,d), makeFloorMaterial(lvl));
+      floor.rotation.x = -Math.PI/2;
+      floor.position.set(cx, lvl.floorZ, cz);
+      floor.receiveShadow = true;
+      contentGroup.add(floor);
+      if (!showPlanTextures){
+        const grid = new THREE.GridHelper(Math.max(w,d), Math.round(Math.max(w,d)), 0x444d59, 0x333a44);
+        grid.position.set(cx, lvl.floorZ+0.002, cz);
+        contentGroup.add(grid);
+      }
+    } else {
+      const b = computeLevelBoundsXZ(lvl);
+      const size = Math.max(b.w, b.d);
+      const floor = new THREE.Mesh(new THREE.PlaneGeometry(size, size),
+        mat('#1a1f27', {metalness:0, roughness:1, transparent:true, opacity:0.55}));
+      floor.rotation.x = -Math.PI/2;
+      floor.position.set(b.cx, lvl.floorZ, b.cz);
+      floor.receiveShadow = true;
+      contentGroup.add(floor);
+      const grid = new THREE.GridHelper(size, Math.round(size), 0x4a5361, 0x2a3038);
+      grid.position.set(b.cx, lvl.floorZ+0.002, b.cz);
       contentGroup.add(grid);
     }
   });
@@ -6530,6 +6580,24 @@ function build3dScene(){
     });
   });
 
+  // ombres portées : active cast/receive sur tout ce qui vient d'être ajouté cette passe,
+  // et recentre la lumière principale sur l'étendue réelle de la scène
+  contentGroup.traverse(o=>{ if (o.isMesh){ o.castShadow = true; o.receiveShadow = true; } });
+  if (three.scene){
+    const mainLight = three.scene.children.find(o=>o.isDirectionalLight && o.castShadow);
+    if (mainLight){
+      const b = computeSceneBounds();
+      const cx=(b.minX+b.maxX)/2, cz=(b.minZ+b.maxZ)/2, cy=(b.minY+b.maxY)/2;
+      const span = Math.max(b.maxX-b.minX, b.maxZ-b.minZ, 8);
+      mainLight.position.set(cx+span*0.55, cy+span*0.9+4, cz+span*0.4);
+      mainLight.target.position.set(cx, cy, cz);
+      mainLight.target.updateMatrixWorld();
+      mainLight.shadow.camera.left = -span*0.75; mainLight.shadow.camera.right = span*0.75;
+      mainLight.shadow.camera.top = span*0.75; mainLight.shadow.camera.bottom = -span*0.75;
+      mainLight.shadow.camera.far = span*3 + 20;
+      mainLight.shadow.camera.updateProjectionMatrix();
+    }
+  }
   document.getElementById('viewport3d').classList.remove('hidden');
 }
 /* accessoire 3D dédié : coude (tube courbé, orientation réelle) / té (embout de piquage réel) */
@@ -6768,15 +6836,15 @@ function clearAutosaveStatus(){
 }
 function setAutosaveOk(message){
   const el=document.getElementById('saveIndicator'); if(!el) return;
-  el.classList.remove('err'); el.removeAttribute('title'); el.textContent=message;
+  el.classList.remove('err'); el.removeAttribute('title'); el.innerHTML=message;
 }
 function showAutosaveFailure(err){
   const isQuota=!!(err&&(err.name==='QuotaExceededError'||err.code===22||err.code===1014||/quota/i.test(String(err.message||''))));
-  const msg=isQuota?'⚠️ Autosave échoué — quota dépassé. Export forcé…':'⚠️ Autosave échoué — enregistrez manuellement.';
+  const msg=isQuota?'<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M10.3 3.9 1.8 18.5A1.5 1.5 0 0 0 3.1 21h17.8a1.5 1.5 0 0 0 1.3-2.5L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v5"/><circle cx="12" cy="17.2" r="0.6" fill="currentColor" stroke="none"/></svg> Autosave échoué — quota dépassé. Export forcé…':'<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M10.3 3.9 1.8 18.5A1.5 1.5 0 0 0 3.1 21h17.8a1.5 1.5 0 0 0 1.3-2.5L13.7 3.9a1.5 1.5 0 0 0-2.6 0z"/><path d="M12 9v5"/><circle cx="12" cy="17.2" r="0.6" fill="currentColor" stroke="none"/></svg> Autosave échoué — enregistrez manuellement.';
   const el=document.getElementById('saveIndicator');
-  if(el){ el.classList.add('err'); el.textContent=msg; el.title='localStorage saturé. Plans dans IndexedDB. Utilisez Enregistrer / export forcé.'; }
+  if(el){ el.classList.add('err'); el.innerHTML=msg; el.title='localStorage saturé. Plans dans IndexedDB. Utilisez Enregistrer / export forcé.'; }
   const t=document.getElementById('toast2d');
-  if(t){ t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),4500); }
+  if(t){ t.innerHTML=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),4500); }
   console.warn('Autosave impossible', err);
   if(isQuota){
     try{ saveProjectFile(); }
@@ -6791,7 +6859,7 @@ function doAutosave(){
     ensureProjectId();
     localStorage.setItem(LS_KEY, JSON.stringify(slimProjectClone(project)));
     const now=new Date();
-    setAutosaveOk('💾 Sauvegarde auto '+now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
+    setAutosaveOk('<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M5 4h11l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 4v5h8V4"/><path d="M7 20v-6h10v6"/></svg> Sauvegarde auto '+now.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}));
   }catch(e){ showAutosaveFailure(e); }
 }
 
@@ -6870,7 +6938,7 @@ async function saveProjectFile(){
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
     const name=(project.name||'projet').replace(/[^a-z0-9_\-]+/gi,'_');
     a.download=`implantation_${name}.json`; a.click(); URL.revokeObjectURL(a.href);
-    setAutosaveOk('💾 Projet enregistré sur disque');
+    setAutosaveOk('<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M5 4h11l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 4v5h8V4"/><path d="M7 20v-6h10v6"/></svg> Projet enregistré sur disque');
   }catch(err){ alert('Enregistrement impossible : '+(err&&err.message?err.message:err)); }
 }
 function loadProjectFile(file){
@@ -6927,7 +6995,7 @@ function showRestoreBanner(data){
       Object.keys(planImageCache).forEach(k=>delete planImageCache[k]);
       Object.keys(planTextureCache).forEach(k=>delete planTextureCache[k]);
       ensurePlanImagesLoaded(); refreshSectionSelect(); refreshCompareLevelSelect(); fitView(); renderAll();
-      resetHistory(); commitHistory(); setAutosaveOk('💾 Sauvegarde restaurée');
+      resetHistory(); commitHistory(); setAutosaveOk('<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M5 4h11l4 4v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M8 4v5h8V4"/><path d="M7 20v-6h10v6"/></svg> Sauvegarde restaurée');
     }catch(err){ alert('Restauration impossible : '+(err.message||err)); }
     banner.remove();
   };
@@ -7144,7 +7212,7 @@ function exportForChiffrage(){
    ============================================================ */
 function init(){
   const savedTheme = localStorage.getItem('implantation_cvc_theme');
-  if (savedTheme){ document.documentElement.setAttribute('data-theme', savedTheme); document.getElementById('themeBtn').textContent = savedTheme==='dark'?'🌙':'☀️'; }
+  if (savedTheme){ document.documentElement.setAttribute('data-theme', savedTheme); document.getElementById('themeBtn').innerHTML = savedTheme==='dark'?'<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><path d="M20 14.2A8.5 8.5 0 1 1 9.8 4a7 7 0 0 0 10.2 10.2z"/></svg>':'<svg class="ic" viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-0.15em;flex-shrink:0;"><circle cx="12" cy="12" r="4"/><path d="M12 3v2.2M12 18.8V21M4.6 4.6l1.6 1.6M17.8 17.8l1.6 1.6M3 12h2.2M18.8 12H21M4.6 19.4l1.6-1.6M17.8 6.2l1.6-1.6"/></svg>'; }
   let savedTab='dessiner'; try{ savedTab = localStorage.getItem('implantation_sidebar_tab')||'dessiner'; }catch(e){}
   setSidebarTab(savedTab);
   project = blankProject();
