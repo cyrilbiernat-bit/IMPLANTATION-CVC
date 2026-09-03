@@ -22,3 +22,12 @@ node --test tests/unit.test.js
 ```
 
 Couverture actuelle : calibration, diamètres/vitesses/ΔP, bilan + graphe débit, export DXF.
+
+## Trajectoire plateforme BIM MEP professionnelle
+
+Ce prototype web reste le banc d'essai UX/calculs. Le dossier d'architecture pour la plateforme BIM MEP 3D
+cible (moteur BIM propriétaire, routage IA, clash detection, calculs normatifs, IFC natif — visant la parité
+avec Stabicad/Revit MEP/MagiCAD sur les projets de conception-réalisation) est dans
+[`docs/bim-mep-platform/`](docs/bim-mep-platform/README.md). Des exemples de code C# des modules critiques
+(moteur BIM paramétrique, routage A*/Dijkstra, clash detection) sont dans
+[`src/BimMepPlatform/`](src/BimMepPlatform/README.md).

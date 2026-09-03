@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>BimMep.Core.Routing</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core.Geometry\Core.Geometry.csproj" />
+    <ProjectReference Include="..\Core.Mep\Core.Mep.csproj" />
+  </ItemGroup>
+
+</Project>
