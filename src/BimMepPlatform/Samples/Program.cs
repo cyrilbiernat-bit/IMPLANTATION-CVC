@@ -4,6 +4,7 @@ using BimMep.Core.Geometry;
 using BimMep.Core.Ifc;
 using BimMep.Core.Mep;
 using BimMep.Core.Routing;
+using BimMep.Core.Takeoff;
 using BimMep.Samples;
 
 Console.WriteLine("=== BimMep Platform — demonstration des modules critiques ===\n");
@@ -117,12 +118,22 @@ var level0 = new Level { Name = "RDC", ElevationMeters = 0.0, HeightMeters = 3.0
 duct1.Level = level0;
 duct2.Level = level0;
 duct3.Level = level0;
+duct1.InsulationThicknessM = 0.03; // calorifuge 30 mm sur le troncon CTA-01, pour la demo metres (§5)
+
+var pipe1 = new MepPipe("Colonne EU-1", null, SystemClassification.WasteEu, lengthM: 12.0) { DiameterNominalM = 0.1 };
+pipe1.Level = level0;
+
+var cableTrayFamily = new Family { Name = "Chemin de cables", Category = "cable_tray" };
+var tray1 = new CableTray("CdC-CFO-1", cableTrayFamily.AddType("Generique")) { WidthM = 0.3, HeightM = 0.1, LengthM = 15.0 };
+tray1.Level = level0;
 
 var project = new Project { Name = "Demonstration BimMepPlatform" };
 project.Levels.Add(level0);
 project.Elements.Add(duct1);
 project.Elements.Add(duct2);
 project.Elements.Add(duct3);
+project.Elements.Add(pipe1);
+project.Elements.Add(tray1);
 
 string ifcText = IfcProjectExporter.Export(project);
 string outputPath = Path.Combine(AppContext.BaseDirectory, "bimmep-demo.ifc");
@@ -131,5 +142,26 @@ File.WriteAllText(outputPath, ifcText);
 Console.WriteLine($"  Fichier ecrit : {outputPath}");
 Console.WriteLine($"  {ifcText.Split('\n').Length} lignes STEP, " +
                    $"{ifcText.Split("IFCDUCTSEGMENT").Length - 1} IfcDuctSegment exporte(s).");
+
+Console.WriteLine();
+
+// ---------------------------------------------------------------------------
+// 5) Metres automatiques : nomenclature + export CSV (docs F-TAKEOFF-01/02, §16 P3)
+// ---------------------------------------------------------------------------
+Console.WriteLine("[5] Metres automatiques — nomenclature du projet");
+
+var takeoff = TakeoffService.GenerateNomenclature(project);
+foreach (var row in takeoff.Rows)
+{
+    Console.WriteLine($"  {row.Category,-16} {row.Label,-14} {row.System ?? "-",-14} " +
+                       $"x{row.Count} L={row.TotalLengthM:F1}m P={row.TotalWeightKg:F1}kg " +
+                       $"Calorifuge={row.TotalInsulationAreaM2:F1}m2");
+}
+Console.WriteLine($"  Total : {takeoff.GrandTotalLengthM:F1} m, {takeoff.GrandTotalWeightKg:F1} kg, " +
+                   $"{takeoff.GrandTotalInsulationAreaM2:F1} m2 de calorifuge.");
+
+string csvPath = Path.Combine(AppContext.BaseDirectory, "bimmep-nomenclature.csv");
+File.WriteAllText(csvPath, TakeoffService.ExportCsv(takeoff));
+Console.WriteLine($"  Nomenclature CSV ecrite : {csvPath}");
 
 Console.WriteLine("\n=== Fin de la demonstration ===");

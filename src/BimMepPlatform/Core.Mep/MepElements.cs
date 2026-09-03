@@ -68,6 +68,7 @@ public sealed class CableTray : BimElement
 {
     public double WidthM { get; set; }
     public double HeightM { get; set; }
+    public double LengthM { get; set; }
     public string TrayType { get; set; } = "Perfore";
     public List<Cable> Cables { get; } = new();
 

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>BimMep.Core.Takeoff</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Core.Bim\Core.Bim.csproj" />
+    <ProjectReference Include="..\Core.Mep\Core.Mep.csproj" />
+    <ProjectReference Include="..\Core.Calculations\Core.Calculations.csproj" />
+  </ItemGroup>
+
+</Project>

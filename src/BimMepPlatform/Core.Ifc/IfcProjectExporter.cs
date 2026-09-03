@@ -190,18 +190,15 @@ public sealed class IfcProjectExporter
 
     private IfcRef ExportCableTray(IfcRef ownerHistory, IfcRef context, CableTray tray)
     {
-        // Longueur non portee par CableTray dans ce dossier d'exemples (docs §17) : approximee par
-        // l'emprise d'1 m par defaut, a affiner avec un attribut LengthM explicite en production.
-        const double defaultLengthM = 1.0;
         var profile = _writer.Write("IFCRECTANGLEPROFILEDEF", new IfcEnum("AREA"), null, null, tray.WidthM, tray.HeightM);
-        var representation = CreateLinearRepresentation(context, profile, defaultLengthM);
+        var representation = CreateLinearRepresentation(context, profile, tray.LengthM);
         var placement = CreateDirectedLocalPlacement(tray.Placement);
 
         var ifcElement = _writer.Write("IFCCABLECARRIERSEGMENT",
             tray.IfcGuid, ownerHistory, tray.Name, null, null, placement, representation, null, null);
 
         WriteDimensionPset(ownerHistory, ifcElement, "BimMep_CableTrayDimensions",
-            ("WidthM", tray.WidthM), ("HeightM", tray.HeightM));
+            ("LengthM", tray.LengthM), ("WidthM", tray.WidthM), ("HeightM", tray.HeightM));
 
         return ifcElement;
     }

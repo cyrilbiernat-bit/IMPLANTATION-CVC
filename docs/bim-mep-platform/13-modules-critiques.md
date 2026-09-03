@@ -9,11 +9,12 @@ schéma de classes UML (§2).
 > **Compilé et testé.** Un SDK .NET 9 n'étant pas disponible dans l'environnement de rédaction (dépôts Ubuntu
 > limités à .NET 8/10), le code a été validé via une copie temporaire retargetée en `net9.0`→`net8.0` (jamais
 > les fichiers du repo, qui restent en `net9.0`) : `dotnet build` (0 erreur/0 warning) et `dotnet test`
-> (**49/49 tests passent**, projet `Tests/`) ainsi que l'exécution du programme `Samples` bout-en-bout. Le
+> (**59/59 tests passent**, projet `Tests/`) ainsi que l'exécution du programme `Samples` bout-en-bout. Le
 > fichier `.ifc` produit par `Core.Ifc` a de plus été **validé avec IfcOpenShell** (parsing IFC4 réel +
-> génération effective de la géométrie triangulée des `IfcDuctSegment` via son moteur OCCT, pas seulement une
-> vérification syntaxique maison) — voir §4 ci-dessous, un bug reel de sérialisation STEP a été trouvé et
-> corrigé grâce à cette validation externe. A refaire avec le SDK net9.0 réel avant mise en production.
+> génération effective de la géométrie triangulée des `IfcDuctSegment`/`IfcPipeSegment`/
+> `IfcCableCarrierSegment` via son moteur OCCT, pas seulement une vérification syntaxique maison) — voir §4
+> ci-dessous, un bug reel de sérialisation STEP a été trouvé et corrigé grâce à cette validation externe. A
+> refaire avec le SDK net9.0 réel avant mise en production.
 
 ## Organisation
 
@@ -26,7 +27,8 @@ schéma de classes UML (§2).
 | `Core.Routing/` | Graphe 3D, `AStarPathFinder` et `DijkstraPathFinder`, `RoutingService` (routage + optimisation poids/pertes de charge, délègue le calcul physique à `Core.Calculations`) | Livrable #20 (exemple du moteur de routage) |
 | `Core.ClashDetection/` | BVH (arbre de volumes englobants avec élagage réel), `ClashDetector` (détection dure + dégagement), `ClashResolver` (proposition de décalage automatique) | Livrable #21 (exemple du module Clash Detection) |
 | `Core.Ifc/` | `IfcStepWriter` (primitives STEP/EXPRESS bas niveau) + `IfcProjectExporter` (hiérarchie spatiale Project→Site→Building→Storey/Space, export IfcDuctSegment/IfcPipeSegment/IfcCableCarrierSegment/IfcUnitaryEquipment avec géométrie extrudée réelle et Psets, docs §6.2) | Extension post-livraison initiale (§16 P0 — "export IFC basique") |
-| `Tests/` | Suite xUnit (49 tests) : cascade de recalcul + détection de cycle (Core.Bim), redimensionnement/avertissement de discontinuité (Core.Mep), valeurs de référence aéraulique/hydraulique/thermique (Core.Calculations), A* avec/sans obstacle (Core.Routing), BVH + clash + résolution (Core.ClashDetection), structure STEP + non-régression du bug de sérialisation (Core.Ifc) | Vérification (non demandée dans la liste initiale des 23 livrables, ajoutée pour fiabiliser le reste) |
+| `Core.Takeoff/` | `TakeoffService` (docs F-TAKEOFF-01/02) : nomenclature agrégée par catégorie/dimension/système (poids de gaine, surface de calorifuge, longueurs), export CSV | Extension post-livraison initiale (§16 P3 — "quick win" identifié en priorisation) |
+| `Tests/` | Suite xUnit (59 tests) : cascade de recalcul + détection de cycle (Core.Bim), redimensionnement/avertissement de discontinuité (Core.Mep), valeurs de référence aéraulique/hydraulique/thermique (Core.Calculations), A* avec/sans obstacle (Core.Routing), BVH + clash + résolution (Core.ClashDetection), structure STEP + non-régression du bug de sérialisation (Core.Ifc), regroupement et calculs de métrés (Core.Takeoff) | Vérification (non demandée dans la liste initiale des 23 livrables, ajoutée pour fiabiliser le reste) |
 
 ## Choix de simplification assumés (à lever en production)
 
@@ -46,6 +48,11 @@ schéma de classes UML (§2).
    suit la même limitation que `Core.Geometry` (direction horizontale uniquement — pas d'inclinaison) ; un
    seul Pset propriétaire minimal par élément (pas de Pset standard buildingSmart) ; `MepEquipment` reçoit une
    géométrie de substitution (cube 0.6 m) faute de famille BIM fabricant réelle.
+6. `Core.Takeoff` ne chiffre un poids que pour les gaines (tôle) : tuyauteries et chemins de câbles n'ont pas
+   de formule de poids linéique fiable sans catalogue fabricant (matériau/DN variables) dans ce dossier
+   d'exemples — leur ligne ne porte que longueur et nombre. L'export CSV utilise virgule + point décimal
+   (culture invariante) ; un import Excel localisé en français demande souvent un délimiteur `;`, à adapter
+   à l'intégration.
 
 ## 4. Validation externe du fichier IFC (IfcOpenShell)
 

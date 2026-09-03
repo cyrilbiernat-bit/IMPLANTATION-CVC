@@ -48,7 +48,7 @@ public sealed class RoutingService
     public IReadOnlyList<RoutingVariant> OptimizeForWeight(
         RoutingGraph3D graph, Point3D from, Point3D to, RoutingConstraints constraints,
         double designFlowM3H, IReadOnlyList<(double widthM, double heightM)> candidateSections,
-        double steelSheetKgPerM2 = 6.0)
+        double steelSheetKgPerM2 = MaterialConstants.GalvanizedSteelSheetKgPerM2)
     {
         var basePath = RouteSegment(graph, from, to, constraints);
         var variants = new List<RoutingVariant>();
