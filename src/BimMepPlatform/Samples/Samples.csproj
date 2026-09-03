@@ -16,6 +16,7 @@
     <ProjectReference Include="..\Core.ClashDetection\Core.ClashDetection.csproj" />
     <ProjectReference Include="..\Core.Ifc\Core.Ifc.csproj" />
     <ProjectReference Include="..\Core.Takeoff\Core.Takeoff.csproj" />
+    <ProjectReference Include="..\Services.ProjectManagement\Services.ProjectManagement.csproj" />
   </ItemGroup>
 
 </Project>

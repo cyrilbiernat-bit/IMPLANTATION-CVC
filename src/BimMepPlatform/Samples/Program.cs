@@ -6,6 +6,8 @@ using BimMep.Core.Mep;
 using BimMep.Core.Routing;
 using BimMep.Core.Takeoff;
 using BimMep.Samples;
+using BimMep.Services.ProjectManagement;
+using Microsoft.EntityFrameworkCore;
 
 Console.WriteLine("=== BimMep Platform — demonstration des modules critiques ===\n");
 
@@ -163,5 +165,45 @@ Console.WriteLine($"  Total : {takeoff.GrandTotalLengthM:F1} m, {takeoff.GrandTo
 string csvPath = Path.Combine(AppContext.BaseDirectory, "bimmep-nomenclature.csv");
 File.WriteAllText(csvPath, TakeoffService.ExportCsv(takeoff));
 Console.WriteLine($"  Nomenclature CSV ecrite : {csvPath}");
+
+Console.WriteLine();
+
+// ---------------------------------------------------------------------------
+// 6) Persistance PostgreSQL : sauvegarde puis rechargement du projet (docs §4, §22)
+// ---------------------------------------------------------------------------
+Console.WriteLine("[6] Persistance — sauvegarde et rechargement via PostgreSQL");
+
+try
+{
+    string connectionString = Environment.GetEnvironmentVariable("BIMMEP_CONNECTION_STRING")
+        ?? BimMepDbContextOptionsFactory.LocalDevConnectionString;
+
+    await using var db = new BimMepDbContext(BimMepDbContextOptionsFactory.Build(connectionString));
+    await db.Database.CanConnectAsync();
+
+    var organizationId = Guid.NewGuid();
+    var userId = Guid.NewGuid();
+    db.Organizations.Add(new BimMep.Services.ProjectManagement.Entities.OrganizationEntity
+    {
+        Id = organizationId, Name = "Bureau d'etudes demo", CreatedAt = DateTimeOffset.UtcNow
+    });
+    db.Users.Add(new BimMep.Services.ProjectManagement.Entities.UserEntity
+    {
+        Id = userId, Email = "demo@bimmep.local", DisplayName = "Ingenieur demo"
+    });
+    await db.SaveChangesAsync();
+
+    var repository = new ProjectRepository(db);
+    await repository.SaveNewProjectAsync(project, organizationId, userId);
+    Console.WriteLine($"  Projet '{project.Name}' sauvegarde (id={project.Id}).");
+
+    var reloaded = await repository.LoadProjectAsync(project.Id);
+    Console.WriteLine($"  Projet recharge : '{reloaded?.Name}', {reloaded?.Levels.Count} niveau(x), " +
+                       $"{reloaded?.Elements.Count} element(s) — round-trip {(reloaded?.Elements.Count == project.Elements.Count ? "OK" : "INCOMPLET")}.");
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"  PostgreSQL indisponible ou non configure, section ignoree ({ex.GetType().Name}: {ex.Message}).");
+}
 
 Console.WriteLine("\n=== Fin de la demonstration ===");
