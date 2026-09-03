@@ -1,3 +1,4 @@
+using BimMep.Core.Calculations;
 using BimMep.Core.Geometry;
 using BimMep.Core.Mep;
 
@@ -40,8 +41,9 @@ public sealed class RoutingService
     /// Genere plusieurs variantes de trace pour un meme couple origine/destination, chacune
     /// approximee par une section de gaine differente, et les chiffre (poids, perte de charge) pour
     /// permettre une comparaison a l'ingenieur (docs §7.3.1 — sortie du skill copilote "OptimizeNetwork").
-    /// Le poids est estime a partir du perimetre de tole developpe (approximation rectangulaire),
-    /// la perte de charge par le meme modele simplifie que MepNetwork.ComputeLosses.
+    /// Le poids est estime a partir du perimetre de tole developpe (approximation rectangulaire) ; la
+    /// perte de charge delegue au meme calcul physique que MepNetwork.ComputeLosses
+    /// (<see cref="AerauliqueCalculator"/>, Core.Calculations) pour eviter toute duplication de formule.
     /// </summary>
     public IReadOnlyList<RoutingVariant> OptimizeForWeight(
         RoutingGraph3D graph, Point3D from, Point3D to, RoutingConstraints constraints,
@@ -55,20 +57,22 @@ public sealed class RoutingService
         {
             double perimeterM = 2 * (widthM + heightM);
             double areaM2 = widthM * heightM;
-            double weightKg = perimeterM * basePath.TotalLength * steelSheetKgPerM2;
+            if (areaM2 <= 0) continue;
 
-            double flowM3S = designFlowM3H / 3600.0;
-            double velocityMs = areaM2 > 0 ? flowM3S / areaM2 : double.PositiveInfinity;
+            double weightKg = perimeterM * basePath.TotalLength * steelSheetKgPerM2;
             double hydraulicDiameterM = 2.0 * areaM2 / Math.Max(widthM + heightM, 1e-6);
-            const double frictionFactor = 0.02;
-            double pressureLossPa = frictionFactor * (basePath.TotalLength / Math.Max(hydraulicDiameterM, 1e-3))
-                                     * (1.2 * velocityMs * velocityMs / 2.0);
+
+            var loss = AerauliqueCalculator.Compute(new DuctSegmentInput(
+                LengthM: basePath.TotalLength,
+                CrossSectionAreaM2: areaM2,
+                HydraulicDiameterM: hydraulicDiameterM,
+                FlowRateM3H: designFlowM3H));
 
             variants.Add(new RoutingVariant(
                 Label: $"{widthM * 1000:F0}x{heightM * 1000:F0} mm",
                 Path: basePath,
                 EstimatedWeightKg: weightKg,
-                EstimatedPressureLossPa: pressureLossPa));
+                EstimatedPressureLossPa: loss.TotalLossPa));
         }
 
         return variants

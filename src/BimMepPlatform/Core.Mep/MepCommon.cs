@@ -1,4 +1,5 @@
 using BimMep.Core.Bim;
+using BimMep.Core.Calculations;
 using BimMep.Core.Geometry;
 
 namespace BimMep.Core.Mep;
@@ -65,13 +66,12 @@ public sealed class MepNetwork
 
     public List<BimElement> Members { get; } = new();
 
-    private const double MaxRecommendedVelocityMs = 6.0;
-
     /// <summary>
-    /// Calcul aeraulique simplifie : somme des pertes de charge lineaires des troncons de gaine du
-    /// reseau (docs §7.4 exemple "optimise le poids des gaines" s'appuie sur ce type de rapport pour
-    /// comparer des variantes). Les coefficients (0.02 friction lineaire) sont illustratifs — la
-    /// version de production utilise les abaques normalises (Core.Calculations, docs §15.1 EN 16798).
+    /// Calcul aeraulique du reseau : somme des pertes de charge des troncons de gaine, en deleguant
+    /// le calcul physique a <see cref="AerauliqueCalculator"/> (Core.Calculations, docs §3.3 — Mep
+    /// depend de Calculations, jamais l'inverse, pour que le calcul reste reutilisable hors du modele
+    /// BIM). Docs §7.4 : c'est ce type de rapport que le copilote IA compare entre variantes de
+    /// dimensionnement ("optimise le poids des gaines").
     /// </summary>
     public LossReport ComputeLosses()
     {
@@ -84,20 +84,19 @@ public sealed class MepNetwork
             double areaM2 = duct.CrossSectionAreaM2;
             if (areaM2 <= 0) continue;
 
-            double flowM3S = DesignFlowM3H / 3600.0;
-            double velocityMs = flowM3S / areaM2;
-            maxVelocity = Math.Max(maxVelocity, velocityMs);
+            var result = AerauliqueCalculator.Compute(new DuctSegmentInput(
+                LengthM: duct.LengthM,
+                CrossSectionAreaM2: areaM2,
+                HydraulicDiameterM: duct.HydraulicDiameterM,
+                FlowRateM3H: DesignFlowM3H));
 
-            const double frictionFactor = 0.02;
-            double hydraulicDiameterM = duct.HydraulicDiameterM;
-            double lossPa = frictionFactor * (duct.LengthM / Math.Max(hydraulicDiameterM, 1e-3))
-                            * (1.2 * velocityMs * velocityMs / 2.0);
-            totalLossPa += lossPa;
+            maxVelocity = Math.Max(maxVelocity, result.VelocityMs);
+            totalLossPa += result.TotalLossPa;
 
-            if (velocityMs > MaxRecommendedVelocityMs)
+            if (result.ExceedsRecommendedVelocity)
             {
-                warnings.Add($"Troncon '{duct.Name}' : vitesse {velocityMs:F1} m/s > seuil recommande " +
-                             $"{MaxRecommendedVelocityMs:F1} m/s.");
+                warnings.Add($"Troncon '{duct.Name}' : vitesse {result.VelocityMs:F1} m/s > seuil recommande " +
+                             $"{AerauliqueCalculator.MaxRecommendedVelocityMs:F1} m/s.");
             }
         }
 
