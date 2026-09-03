@@ -1,20 +1,16 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <OutputType>Exe</OutputType>
     <TargetFramework>net9.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>BimMep.Samples</RootNamespace>
+    <RootNamespace>BimMep.Core.Ifc</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Core.Geometry\Core.Geometry.csproj" />
     <ProjectReference Include="..\Core.Bim\Core.Bim.csproj" />
     <ProjectReference Include="..\Core.Mep\Core.Mep.csproj" />
-    <ProjectReference Include="..\Core.Routing\Core.Routing.csproj" />
-    <ProjectReference Include="..\Core.ClashDetection\Core.ClashDetection.csproj" />
-    <ProjectReference Include="..\Core.Ifc\Core.Ifc.csproj" />
   </ItemGroup>
 
 </Project>

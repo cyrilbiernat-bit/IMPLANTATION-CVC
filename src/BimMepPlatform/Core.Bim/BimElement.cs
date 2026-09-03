@@ -65,6 +65,11 @@ public abstract class BimElement : IRecomputable
     public string Name { get; set; }
     public FamilyType? FamilyType { get; }
     public Transform3D Placement { get; set; } = Transform3D.Identity;
+
+    /// <summary>Niveau de rattachement (docs §4.2, colonne bim_elements.level_id) — utilise notamment
+    /// pour le confinement spatial IFC (IfcRelContainedInSpatialStructure, docs §6.2).</summary>
+    public Level? Level { get; set; }
+
     public int Lod { get; set; }
     public int RevisionNumber { get; private set; }
     public DateTimeOffset CreatedAt { get; }

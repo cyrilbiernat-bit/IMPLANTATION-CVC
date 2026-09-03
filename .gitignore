@@ -1,0 +1,6 @@
+# Build artifacts .NET (src/BimMepPlatform)
+bin/
+obj/
+
+# Fichiers generes par les demonstrations (Samples)
+*.ifc

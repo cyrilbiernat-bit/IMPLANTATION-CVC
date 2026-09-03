@@ -25,6 +25,7 @@
     <ProjectReference Include="..\Core.Calculations\Core.Calculations.csproj" />
     <ProjectReference Include="..\Core.Routing\Core.Routing.csproj" />
     <ProjectReference Include="..\Core.ClashDetection\Core.ClashDetection.csproj" />
+    <ProjectReference Include="..\Core.Ifc\Core.Ifc.csproj" />
   </ItemGroup>
 
 </Project>

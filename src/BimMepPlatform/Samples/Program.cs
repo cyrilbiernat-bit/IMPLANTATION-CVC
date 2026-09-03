@@ -1,6 +1,7 @@
 using BimMep.Core.Bim;
 using BimMep.Core.ClashDetection;
 using BimMep.Core.Geometry;
+using BimMep.Core.Ifc;
 using BimMep.Core.Mep;
 using BimMep.Core.Routing;
 using BimMep.Samples;
@@ -104,5 +105,31 @@ foreach (var clash in clashes)
         Console.WriteLine($"  -> Resolution appliquee, {report.RecomputedInOrder.Count} element(s) recalcule(s).");
     }
 }
+
+Console.WriteLine();
+
+// ---------------------------------------------------------------------------
+// 4) Export IFC4 : hierarchie spatiale + elements MEP (docs §6, §16 P0)
+// ---------------------------------------------------------------------------
+Console.WriteLine("[4] Export IFC4 — modele complet vers fichier .ifc");
+
+var level0 = new Level { Name = "RDC", ElevationMeters = 0.0, HeightMeters = 3.0 };
+duct1.Level = level0;
+duct2.Level = level0;
+duct3.Level = level0;
+
+var project = new Project { Name = "Demonstration BimMepPlatform" };
+project.Levels.Add(level0);
+project.Elements.Add(duct1);
+project.Elements.Add(duct2);
+project.Elements.Add(duct3);
+
+string ifcText = IfcProjectExporter.Export(project);
+string outputPath = Path.Combine(AppContext.BaseDirectory, "bimmep-demo.ifc");
+File.WriteAllText(outputPath, ifcText);
+
+Console.WriteLine($"  Fichier ecrit : {outputPath}");
+Console.WriteLine($"  {ifcText.Split('\n').Length} lignes STEP, " +
+                   $"{ifcText.Split("IFCDUCTSEGMENT").Length - 1} IfcDuctSegment exporte(s).");
 
 Console.WriteLine("\n=== Fin de la demonstration ===");
