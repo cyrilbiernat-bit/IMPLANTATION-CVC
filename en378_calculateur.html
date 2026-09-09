@@ -1,0 +1,1590 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CVC EN 378-1 — Calcul de concentration de fluide frigorigène</title>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
+<style>
+:root{
+  --blue:#1565c0; --blue-dim:#1565c022; --teal:#00897b;
+  --bg:#f4f6f8; --panel:#ffffff; --border:#e0e0e0;
+  --text:#1a2230; --muted:#5a6472;
+  --green:#2e7d32; --orange:#ed6c02; --red:#c62828;
+  --radius:8px; --shadow:0 1px 3px rgba(20,30,50,.08);
+  --font:'Segoe UI',Roboto,-apple-system,BlinkMacSystemFont,Arial,sans-serif;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;}
+h1,h2,h3{margin:0 0 8px;}
+h1{font-size:20px;font-weight:700;}
+h2{font-size:17px;font-weight:700;}
+h3{font-size:14px;font-weight:700;}
+p{margin:0 0 8px;line-height:1.5;}
+a{color:var(--blue);}
+button{font-family:var(--font);cursor:pointer;}
+input,select,textarea{font-family:var(--font);font-size:13.5px;}
+.app{display:flex;min-height:100vh;}
+/* Sidebar */
+.sidebar{width:260px;flex-shrink:0;background:var(--panel);border-right:1px solid var(--border);padding:12px 0;position:sticky;top:0;height:100vh;overflow-y:auto;}
+.brand{display:flex;align-items:center;gap:10px;padding:12px 20px 18px;font-weight:800;font-size:16px;}
+.brand .ic{font-size:22px;}
+.nav-item{display:flex;align-items:center;gap:10px;width:calc(100% - 16px);margin:0 8px 4px;padding:10px 12px;border:none;background:transparent;border-radius:8px;text-align:left;font-size:13.5px;font-weight:500;color:var(--text);}
+.nav-item .ic{font-size:16px;width:20px;text-align:center;}
+.nav-item:hover{background:#f0f2f5;}
+.nav-item.active{background:var(--blue-dim);color:var(--blue);font-weight:700;}
+/* Main */
+.main{flex:1;min-width:0;}
+.topbar{background:var(--panel);border-bottom:1px solid var(--border);padding:16px 28px;position:sticky;top:0;z-index:5;}
+.content{padding:24px 28px;max-width:1400px;}
+.page{display:none;}
+.page.active{display:block;}
+/* Cards / layout */
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px;margin-bottom:20px;}
+.grid{display:grid;gap:20px;}
+.grid.cols-2{grid-template-columns:1fr 1fr;}
+.grid.form{grid-template-columns:1fr;}
+@media(min-width:1100px){ .grid.split{grid-template-columns:420px 1fr;align-items:start;} }
+.field{margin-bottom:14px;}
+.field label{display:block;font-size:12px;color:var(--muted);font-weight:600;margin-bottom:4px;}
+.field .hint{font-size:11px;color:var(--muted);margin-top:3px;}
+.field input[type=text],.field input[type=number],.field select,.field textarea{
+  width:100%;padding:9px 11px;border:1px solid #c9d0d8;border-radius:7px;background:#fff;color:var(--text);
+}
+.field input:focus,.field select:focus,.field textarea:focus{outline:2px solid var(--blue-dim);border-color:var(--blue);}
+.field.row2{display:flex;gap:10px;}
+.field.row2 > div{flex:1;}
+.checkbox-field{display:flex;align-items:center;gap:8px;margin-bottom:14px;font-size:13px;}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:9px 18px;border-radius:7px;border:1px solid var(--blue);background:var(--blue);color:#fff;font-weight:700;font-size:13px;}
+.btn:hover{background:#0d47a1;}
+.btn.outline{background:transparent;color:var(--blue);}
+.btn.outline:hover{background:var(--blue-dim);}
+.btn.small{padding:5px 12px;font-size:12px;}
+.btn:disabled{opacity:.5;cursor:not-allowed;}
+.btn-icon{border:none;background:transparent;color:var(--muted);padding:5px;border-radius:6px;font-size:15px;}
+.btn-icon:hover{background:#f0f2f5;color:var(--text);}
+table{width:100%;border-collapse:collapse;font-size:13px;}
+th{text-align:left;color:var(--muted);font-weight:700;font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;padding:8px 8px;border-bottom:2px solid var(--border);}
+td{padding:8px;border-bottom:1px solid var(--border);vertical-align:middle;}
+td.num{text-align:right;}
+.table-scroll{overflow-x:auto;}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:3px 10px;border-radius:20px;font-size:11.5px;font-weight:700;border:1px solid var(--border);background:#f0f2f5;color:var(--text);white-space:nowrap;}
+.chip.outline{background:transparent;}
+.chip.conforme{background:#2e7d321a;color:var(--green);border-color:#2e7d3255;}
+.chip.sous-conditions{background:#ed6c021a;color:var(--orange);border-color:#ed6c0255;}
+.chip.non-conforme{background:#c628281a;color:var(--red);border-color:#c6282855;}
+.alert{padding:12px 14px;border-radius:7px;font-size:13px;margin-bottom:10px;line-height:1.5;}
+.alert.info{background:#e3f2fd;color:#0d47a1;}
+.alert.warning{background:#fff3e0;color:#8a4b00;}
+.alert.error{background:#fdecea;color:#7f1d1d;}
+.alert.success{background:#e8f5e9;color:#1b5e20;}
+.alert .close{float:right;cursor:pointer;font-weight:700;background:none;border:none;color:inherit;}
+.note-line{font-size:11.5px;color:var(--muted);margin:2px 0;}
+.small-input{width:80px !important;}
+.mid-input{width:110px !important;}
+.hidden{display:none !important;}
+.flex{display:flex;}
+.flex.between{justify-content:space-between;}
+.flex.center{align-items:center;}
+.flex.gap{gap:10px;}
+.tabs{display:flex;gap:4px;background:#eceff1;padding:4px;border-radius:9px;margin-bottom:18px;width:fit-content;}
+.tabs button{border:none;background:transparent;padding:8px 18px;border-radius:6px;font-weight:700;font-size:12.5px;color:var(--muted);}
+.tabs button.active{background:#fff;color:var(--blue);box-shadow:var(--shadow);}
+.gauge-wrap{display:flex;flex-direction:column;align-items:center;}
+.gauge-value{font-size:22px;font-weight:800;margin-top:-6px;}
+.gauge-label{font-size:11px;color:var(--muted);}
+.heat-card{border:1px solid var(--border);border-left:6px solid #999;border-radius:7px;padding:10px 12px;background:#fafafa;}
+.bar-row{margin-bottom:12px;}
+.bar-track{position:relative;height:14px;background:#eceff1;border-radius:6px;margin-top:4px;}
+.bar-fill{position:absolute;left:0;top:0;bottom:0;border-radius:6px;}
+.bar-limit{position:absolute;top:-2px;bottom:-2px;width:2px;background:#212121;}
+.result-empty{display:flex;align-items:center;justify-content:center;height:100%;min-height:220px;color:var(--muted);text-align:center;padding:20px;}
+footer.disclaimer{font-size:11px;color:var(--muted);border-top:1px solid var(--border);margin-top:24px;padding-top:14px;line-height:1.6;}
+.file-btn{position:relative;overflow:hidden;display:inline-block;}
+.file-btn input[type=file]{position:absolute;left:0;top:0;opacity:0;width:100%;height:100%;cursor:pointer;}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand"><span class="ic">❄️</span> CVC EN 378-1</div>
+    <nav>
+      <button class="nav-item active" data-page="nouveau-projet"><span class="ic">📄</span> Nouveau projet</button>
+      <button class="nav-item" data-page="calcul-rapide"><span class="ic">⏱️</span> Calcul rapide</button>
+      <button class="nav-item" data-page="calcul-expert"><span class="ic">🧮</span> Calcul expert</button>
+      <button class="nav-item" data-page="bibliotheque-fluides"><span class="ic">💧</span> Bibliothèque fluides</button>
+      <button class="nav-item" data-page="bibliotheque-equipements"><span class="ic">🗄️</span> Bibliothèque équipements</button>
+      <button class="nav-item" data-page="assistant-ia"><span class="ic">🤖</span> Assistant IA (CCTP)</button>
+      <button class="nav-item" data-page="rapports"><span class="ic">📋</span> Rapports</button>
+      <button class="nav-item" data-page="parametres"><span class="ic">⚙️</span> Paramètres</button>
+    </nav>
+  </aside>
+  <div class="main">
+    <div class="topbar"><h1 id="pageTitle">Nouveau projet</h1></div>
+    <div class="content" id="content">
+
+      <!-- ================= NOUVEAU PROJET ================= -->
+      <section id="page-nouveau-projet" class="page active">
+        <div id="np-current-alert"></div>
+        <div class="card">
+          <h2>Créer un nouveau projet</h2>
+          <div class="grid cols-2">
+            <div class="field"><label>Nom du projet</label><input type="text" id="np-name"></div>
+            <div class="field"><label>Client</label><input type="text" id="np-client"></div>
+            <div class="field"><label>Adresse</label><input type="text" id="np-address"></div>
+            <div class="field"><label>Type de bâtiment</label>
+              <select id="np-building-type">
+                <option value="tertiaire">Tertiaire</option><option value="residentiel">Résidentiel</option>
+                <option value="industriel">Industriel</option><option value="commercial">Commercial</option>
+                <option value="erp">ERP</option><option value="hotel">Hôtel</option>
+                <option value="sante">Santé</option><option value="logistique">Logistique</option>
+              </select>
+            </div>
+            <div class="field"><label>Rédacteur</label><input type="text" id="np-author"></div>
+          </div>
+          <div class="field"><label>Notes</label><textarea id="np-notes" rows="2"></textarea></div>
+          <div id="np-message"></div>
+          <button class="btn" onclick="App.createProject()">Créer le projet</button>
+        </div>
+        <div class="card">
+          <h2>Projets existants</h2>
+          <div class="table-scroll"><table>
+            <thead><tr><th>Nom</th><th>Client</th><th>Type de bâtiment</th><th>Mis à jour</th><th></th></tr></thead>
+            <tbody id="np-project-list"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ================= CALCUL RAPIDE ================= -->
+      <section id="page-calcul-rapide" class="page">
+        <div class="grid split">
+          <div class="card">
+            <h2>Prédimensionnement</h2>
+            <div class="field"><label>Type de bâtiment</label>
+              <select id="qc-building-type">
+                <option value="tertiaire">tertiaire</option><option value="residentiel">residentiel</option>
+                <option value="industriel">industriel</option><option value="commercial">commercial</option>
+                <option value="erp">erp</option><option value="hotel">hotel</option>
+                <option value="sante">sante</option><option value="logistique">logistique</option>
+              </select>
+            </div>
+            <div class="field"><label>Nom du local</label><input type="text" id="qc-room-name" value="Bureau 1"></div>
+            <div class="field"><label>Type de local</label><select id="qc-room-type"></select></div>
+            <div class="field row2">
+              <div><label>Surface (m²)</label><input type="number" id="qc-surface" value="25"></div>
+              <div><label>Hauteur sous plafond (m)</label><input type="number" id="qc-height" value="2.6" step="0.1"></div>
+            </div>
+            <div class="hint" id="qc-volume-hint" style="margin:-8px 0 14px;"></div>
+            <div class="field"><label>Système (laisser vide pour proposition automatique)</label>
+              <select id="qc-system-type"><option value="">— Proposition automatique —</option></select>
+            </div>
+            <div class="field"><label>Fluide frigorigène</label><select id="qc-fluid"></select></div>
+            <div class="field row2">
+              <div><label>Puissance frigorifique (kW) — optionnel</label><input type="number" id="qc-cooling-power"></div>
+              <div><label>Puissance chauffage (kW) — optionnel</label><input type="number" id="qc-heating-power"></div>
+            </div>
+            <div class="field"><label>Nombre d'unités intérieures</label><input type="number" id="qc-indoor-units" value="1"></div>
+            <div class="field"><label>Catégorie d'accès du local</label><select id="qc-access"></select></div>
+            <div class="field"><label>Zone climatique</label>
+              <select id="qc-climate"><option>H1</option><option selected>H2</option><option>H3</option></select>
+            </div>
+            <div class="field hidden" id="qc-mounting-field"><label>Emplacement d'installation (fluide inflammable — Formule C.1)</label><select id="qc-mounting"></select></div>
+            <div class="checkbox-field"><input type="checkbox" id="qc-basement"><label for="qc-basement">Local situé à l'étage le plus bas en sous-sol (C.3.2.3)</label></div>
+            <div id="qc-error"></div>
+            <button class="btn" onclick="App.runQuickCalc()">Calculer</button>
+          </div>
+          <div id="qc-result"><div class="card result-empty">Renseignez les paramètres du local et cliquez sur « Calculer » pour obtenir une estimation instantanée de la charge de fluide et de la conformité NF EN 378-1.</div></div>
+        </div>
+      </section>
+
+      <!-- ================= CALCUL EXPERT ================= -->
+      <section id="page-calcul-expert" class="page">
+        <div id="ec-warning"></div>
+        <div class="tabs">
+          <button class="active" id="ec-tab-circuits" onclick="App.setExpertTab('circuits')">Calcul détaillé (circuits)</button>
+          <button id="ec-tab-multiroom" onclick="App.setExpertTab('multiroom')">Analyse multilocaux</button>
+        </div>
+
+        <div id="ec-panel-circuits">
+          <div class="grid split">
+            <div class="card">
+              <h2>Local &amp; circuits frigorifiques</h2>
+              <div class="grid cols-2">
+                <div class="field"><label>Nom du local</label><input type="text" id="circ-room-name" value="Local technique"></div>
+                <div class="field"><label>Type de local</label><select id="circ-room-type"></select></div>
+                <div class="field"><label>Surface (m²)</label><input type="number" id="circ-surface" value="10"></div>
+                <div class="field"><label>Hauteur (m)</label><input type="number" id="circ-height" value="2.5" step="0.1"></div>
+                <div class="field"><label>Catégorie d'accès</label><select id="circ-access"></select></div>
+                <div class="field"><label>Type de système (pour la méthode C.2)</label><select id="circ-system-type"><option value="">— Non précisé —</option></select></div>
+                <div class="field hidden" id="circ-mounting-field"><label>Emplacement d'installation</label><select id="circ-mounting"></select></div>
+              </div>
+              <div class="checkbox-field"><input type="checkbox" id="circ-basement"><label for="circ-basement">Étage le plus bas en sous-sol (C.3.2.3)</label></div>
+              <div id="circ-list"></div>
+              <button class="btn outline small" onclick="App.addCircuit()">+ Ajouter un circuit</button>
+              <div id="circ-error" style="margin-top:12px;"></div>
+              <div style="margin-top:14px;"><button class="btn" onclick="App.runExpertCalc()">Calculer</button></div>
+            </div>
+            <div id="circ-result"></div>
+          </div>
+        </div>
+
+        <div id="ec-panel-multiroom" class="hidden">
+          <div class="card">
+            <div class="flex between center">
+              <h2 style="margin:0;">Locaux du projet</h2>
+              <div class="flex gap">
+                <span class="btn outline small file-btn">📥 Importer Excel<input type="file" accept=".xlsx,.xlsm" onchange="App.handleExcelImport(event)"></span>
+                <span class="btn outline small file-btn">🗺️ Détecter depuis un plan<input type="file" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.bmp" onchange="App.handlePlanImport(event)"></span>
+              </div>
+            </div>
+            <div id="mr-import-info"></div>
+            <div class="table-scroll" style="margin-top:14px;">
+              <table>
+                <thead><tr>
+                  <th>Nom</th><th>Type</th><th>Surface (m²)</th><th>Hauteur (m)</th><th>Fluide</th><th>Charge (kg)</th>
+                  <th>Système</th><th>Montage</th><th>Sous-sol</th><th></th>
+                </tr></thead>
+                <tbody id="mr-room-list"></tbody>
+              </table>
+            </div>
+            <button class="btn outline small" style="margin-top:10px;" onclick="App.addMultiRoom()">+ Ajouter un local</button>
+            <div id="mr-error" style="margin-top:12px;"></div>
+            <div style="margin-top:14px;"><button class="btn" onclick="App.runMultiRoom()">Analyser</button></div>
+          </div>
+          <div id="mr-result"></div>
+        </div>
+      </section>
+
+      <!-- ================= BIBLIOTHEQUE FLUIDES ================= -->
+      <section id="page-bibliotheque-fluides" class="page">
+        <div class="alert warning">Les valeurs LFL / limite pratique / ATEL-ODL proviennent de l'Annexe E (normative) de la NF EN 378-1+A1:2020 ; les valeurs RCL / QLMV / QLAV sont celles du Tableau C.3 lorsque le fluide y est listé (R-22, R-134a, R-407C, R-410A, R-744, R-32, R-1234yf, R-1234ze), sinon calculées selon C.3.2.1. Une vérification par un professionnel qualifié reste requise avant toute utilisation réglementaire. Cette bibliothèque est entièrement éditable (bouton « Ajouter »/icônes ✏️).</div>
+        <div class="card">
+          <div class="flex between center"><h2 style="margin:0;">Fluides frigorigènes</h2><button class="btn small" onclick="App.openFluidDialog()">+ Ajouter un fluide</button></div>
+          <div class="table-scroll" style="margin-top:14px;"><table>
+            <thead><tr><th>Code</th><th>Désignation</th><th>Groupe</th><th class="num">LFL</th><th class="num">Lim. pratique</th><th class="num">ATEL/ODL</th><th class="num">RCL</th><th class="num">QLMV</th><th class="num">QLAV</th><th class="num">GWP</th><th></th></tr></thead>
+            <tbody id="fluid-list"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ================= BIBLIOTHEQUE EQUIPEMENTS ================= -->
+      <section id="page-bibliotheque-equipements" class="page">
+        <div class="card">
+          <div class="grid cols-2">
+            <div class="field"><label>Constructeur</label><select id="eq-filter-manufacturer" onchange="App.renderEquipmentList()"><option value="">Tous les constructeurs</option></select></div>
+            <div class="field"><label>Type de système</label><select id="eq-filter-system" onchange="App.renderEquipmentList()"><option value="">Tous les types</option></select></div>
+          </div>
+        </div>
+        <div class="card">
+          <h2 id="eq-count">Équipements</h2>
+          <div class="table-scroll"><table>
+            <thead><tr><th>Constructeur</th><th>Référence</th><th>Type</th><th>Fluide</th><th class="num">Puiss. froid</th><th class="num">Puiss. chaud</th><th class="num">Charge usine</th><th class="num">Charge compl.</th><th class="num">Long. max</th><th class="num">Long. équiv.</th></tr></thead>
+            <tbody id="eq-list"></tbody>
+          </table></div>
+        </div>
+      </section>
+
+      <!-- ================= ASSISTANT IA ================= -->
+      <section id="page-assistant-ia" class="page">
+        <div class="grid cols-2">
+          <div class="card">
+            <div class="flex gap center"><span style="font-size:20px;">🤖</span><h2 style="margin:0;">Analyse automatique d'un CCTP</h2></div>
+            <div class="alert info">Collez le texte d'un CCTP ci-dessous. L'assistant identifie les locaux mentionnés (nom, type, surface) via un moteur heuristique local (mots-clés + expressions régulières) et propose un type de système CVC pour chacun.</div>
+            <div class="field"><textarea id="ai-cctp-text" rows="14" placeholder="Exemple :&#10;Bureau direction : 25 m2&#10;Salle de réunion : 18 m2&#10;Local technique : 6 m2"></textarea></div>
+            <button class="btn" onclick="App.analyzeCctp()">Analyser le CCTP</button>
+          </div>
+          <div class="card">
+            <div class="flex between center"><h2 style="margin:0;">Locaux extraits</h2><span id="ai-engine-chip"></span></div>
+            <div id="ai-rooms-result"><p style="color:var(--muted);">Aucun local extrait pour le moment.</p></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= RAPPORTS ================= -->
+      <section id="page-rapports" class="page">
+        <div class="card">
+          <h2>Projet</h2>
+          <div class="field" style="max-width:420px;"><label>Sélectionner un projet</label><select id="rp-project" onchange="App.renderReportsPage()"></select></div>
+        </div>
+        <div id="rp-content"></div>
+      </section>
+
+      <!-- ================= PARAMETRES ================= -->
+      <section id="page-parametres" class="page">
+        <div class="grid cols-2">
+          <div class="card">
+            <h2>Coordonnées du bureau d'études</h2>
+            <p style="color:var(--muted);">Ces informations apparaissent en page de garde des rapports PDF générés.</p>
+            <div class="field"><label>Nom de la société</label><input type="text" id="set-company-name"></div>
+            <div class="field"><label>Adresse</label><input type="text" id="set-address"></div>
+            <div class="field"><label>E-mail de contact</label><input type="text" id="set-email"></div>
+            <div class="field"><label>Téléphone</label><input type="text" id="set-phone"></div>
+            <div id="set-message"></div>
+            <button class="btn" onclick="App.saveSettings()">Enregistrer</button>
+          </div>
+          <div class="card">
+            <h2>Logo société</h2>
+            <div style="width:96px;height:96px;border-radius:8px;background:#f0f2f5;display:flex;align-items:center;justify-content:center;overflow:hidden;margin-bottom:14px;" id="set-logo-preview">Logo</div>
+            <span class="btn outline small file-btn">Importer un logo<input type="file" accept="image/*" onchange="App.handleLogoUpload(event)"></span>
+          </div>
+        </div>
+      </section>
+
+      <footer class="disclaimer">
+        Outil d'aide à la pré-vérification NF EN 378-1+A1:2020 (Annexe C — Formules C.1/C.2 et Tableaux C.3/C.4).
+        Les valeurs de seuils et le catalogue équipements doivent être vérifiés par un professionnel qualifié avant
+        toute utilisation réglementaire contractuelle. Données stockées localement dans votre navigateur (aucun
+        envoi à un serveur). Voir la bibliothèque fluides pour le détail des sources normatives.
+      </footer>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   NF EN 378-1+A1:2020 — Moteur de calcul (portage JS de backend/app/core/en378.py)
+   Formules validées contre les exemples chiffrés de l'Annexe H de la norme.
+   ========================================================================= */
+'use strict';
+
+function round(x, n){ const f = Math.pow(10, n); return Math.round((x + Number.EPSILON) * f) / f; }
+function escapeHtml(s){ return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function uid(prefix){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+
+const MOUNTING_HEIGHT_COEFFICIENTS = { floor:0.6, wall:1.8, window:1.0, ceiling:2.2 };
+const MOUNTING_TYPE_LABELS = { floor:'Plancher', wall:'Montage au mur', window:'Montage sur fenêtre', ceiling:'Montage au plafond' };
+const COMFORT_AC_SYSTEM_TYPES = new Set(['DRV','Multi-split','Split','PAC']);
+const TABLE_C4_MOLAR_MASSES = [50,75,100,125];
+const TABLE_C4 = {
+  0.05:[0.051,0.051,0.051,0.051], 0.10:[0.106,0.108,0.108,0.109], 0.15:[0.168,0.173,0.175,0.176],
+  0.20:[0.242,0.254,0.260,0.264], 0.25:[0.336,0.367,0.383,0.394], 0.30:[0.470,0.564,0.633,0.689],
+  0.35:[0.724,null,null,null],
+};
+const MAX_SURFACE_FOR_VOLUME_CHECK_M2 = 250.0;
+const METHOD_B_MAX_CHARGE_KG = 150.0;
+
+function isFlammable(safetyGroup){
+  return ['A2L','A2','A3','B2L','B2'].includes(String(safetyGroup||'').toUpperCase());
+}
+function computeVolume(surfaceM2, heightM){
+  if (surfaceM2 <= 0 || heightM <= 0) throw new Error('La surface et la hauteur doivent être positives.');
+  return surfaceM2 * heightM;
+}
+
+function computeSplitSystemLimit(fluid, chargeKg, surfaceM2, mountingType){
+  if (!isFlammable(fluid.safety_group)){
+    return { applicable:false, reason:`La méthode C.2 ne s'applique qu'aux fluides inflammables (classes 2L/2/3) ; ${fluid.code} est de classe ${fluid.safety_group}.` };
+  }
+  if (fluid.lfl_kg_m3 == null){
+    return { applicable:false, reason:`LFL non définie pour ${fluid.code}.` };
+  }
+  if (!(mountingType in MOUNTING_HEIGHT_COEFFICIENTS)){
+    return { applicable:false, reason:`Type de montage inconnu : ${mountingType}.` };
+  }
+  const h0 = MOUNTING_HEIGHT_COEFFICIENTS[mountingType];
+  const m1 = 4.0 * fluid.lfl_kg_m3;
+  const flamClass = String(fluid.safety_group).toUpperCase().replace(/[AB]/g,'');
+  const threshold = flamClass === '2L' ? m1 * 1.5 : m1;
+  const aboveThreshold = chargeKg > threshold;
+  const lflPow = Math.pow(fluid.lfl_kg_m3, 1.25);
+  const denom = 2.5 * lflPow * h0;
+  const mmax = surfaceM2 > 0 ? denom * Math.sqrt(surfaceM2) : 0.0;
+  const amin = denom > 0 ? (chargeKg*chargeKg) / (denom*denom) : null;
+  const conformity = (!aboveThreshold || chargeKg <= mmax) ? 'Conforme' : 'Non conforme';
+  return {
+    applicable:true, reason:null,
+    m1_kg: round(m1,4), threshold_kg: round(threshold,4),
+    charge_above_threshold: aboveThreshold,
+    mmax_kg: round(mmax,4), amin_m2: amin!=null ? round(amin,3) : null,
+    conformity, mounting_type: mountingType, h0,
+  };
+}
+
+function bilinearInterp(x, x0, x1, y0, y1){
+  if (x1 === x0) return y0;
+  const t = (x - x0) / (x1 - x0);
+  return y0 + t * (y1 - y0);
+}
+
+function interpolateQlmv(rcl, molarMass){
+  const rclKeys = Object.keys(TABLE_C4).map(Number).sort((a,b)=>a-b);
+  let rowLow, rowHigh;
+  if (rcl <= rclKeys[0]) { rowLow = rowHigh = rclKeys[0]; }
+  else if (rcl >= rclKeys[rclKeys.length-1]) { rowLow = rowHigh = rclKeys[rclKeys.length-1]; }
+  else {
+    rowLow = Math.max.apply(null, rclKeys.filter(k=>k<=rcl));
+    rowHigh = Math.min.apply(null, rclKeys.filter(k=>k>=rcl));
+  }
+  const mm = Math.max(Math.min(molarMass, TABLE_C4_MOLAR_MASSES[TABLE_C4_MOLAR_MASSES.length-1]), TABLE_C4_MOLAR_MASSES[0]);
+  const idxLow = [], idxHigh = [];
+  TABLE_C4_MOLAR_MASSES.forEach((m,i)=>{ if (m<=mm) idxLow.push(i); if (m>=mm) idxHigh.push(i); });
+  const colLowIdx = Math.max.apply(null, idxLow);
+  const colHighIdx = Math.min.apply(null, idxHigh);
+  function valueAt(row){
+    const vals = TABLE_C4[row];
+    const vLow = vals[colLowIdx], vHigh = vals[colHighIdx];
+    if (vLow == null || vHigh == null) return null;
+    return bilinearInterp(mm, TABLE_C4_MOLAR_MASSES[colLowIdx], TABLE_C4_MOLAR_MASSES[colHighIdx], vLow, vHigh);
+  }
+  const vRowLow = valueAt(rowLow), vRowHigh = valueAt(rowHigh);
+  if (vRowLow == null || vRowHigh == null) return null;
+  return bilinearInterp(rcl, rowLow, rowHigh, vRowLow, vRowHigh);
+}
+
+function deriveRcl(fluid){
+  if (fluid.rcl_kg_m3 != null) return [fluid.rcl_kg_m3, 'Tableau C.3 (valeur normative)'];
+  const candidates = [fluid.practical_limit_kg_m3, fluid.atel_odl_kg_m3].filter(v => v != null);
+  if (!candidates.length) return [null, 'indéterminée'];
+  return [Math.min.apply(null, candidates), "dérivée de l'Annexe E (min. limite pratique / ATEL-ODL)"];
+}
+function deriveQlav(fluid){
+  if (fluid.qlav_kg_m3 != null) return [fluid.qlav_kg_m3, 'Tableau C.3 (valeur normative)'];
+  const candidates = [];
+  if (fluid.atel_odl_kg_m3) candidates.push(fluid.atel_odl_kg_m3);
+  if (fluid.lfl_kg_m3 && isFlammable(fluid.safety_group)) candidates.push(0.5 * fluid.lfl_kg_m3);
+  if (!candidates.length) return [null, 'indéterminée'];
+  return [Math.min.apply(null, candidates), 'dérivée (min. ODL / 50% LFL, règle suivant le Tableau C.3)'];
+}
+function deriveQlmv(fluid, rcl, qlav){
+  if (fluid.qlmv_kg_m3 != null) return [fluid.qlmv_kg_m3, 'Tableau C.3 (valeur normative)'];
+  if (rcl == null || fluid.molar_mass_g_mol == null) return [qlav, 'indéterminée — QLAV utilisée par défaut (Formule C.6 non calculable)'];
+  const qlmv = interpolateQlmv(rcl, fluid.molar_mass_g_mol);
+  if (qlmv == null || (qlav != null && qlmv > qlav)) return [qlav, 'Tableau C.4 (interpolation) plafonnée à la QLAV'];
+  return [qlmv, 'Tableau C.4 (interpolation linéaire RCL / masse moléculaire)'];
+}
+function isMethodBEligible(fluid, chargeKg){
+  if (!['A1','A2L'].includes(String(fluid.safety_group||'').toUpperCase())){
+    return [false, `La méthode alternative C.3 ne s'applique qu'aux fluides de groupe A1 ou A2L (C.3.1) ; ${fluid.code} est de groupe ${fluid.safety_group}.`];
+  }
+  if (chargeKg > METHOD_B_MAX_CHARGE_KG){
+    return [false, `Charge (${chargeKg} kg) supérieure au plafond de 150 kg fixé par C.3.1.`];
+  }
+  return [true, null];
+}
+
+function computeGeneralMethod(fluid, chargeKg, surfaceM2, heightM, isLowestBasementLevel){
+  isLowestBasementLevel = !!isLowestBasementLevel;
+  if (chargeKg < 0) throw new Error('La charge de fluide doit être positive.');
+  const volume = computeVolume(surfaceM2, heightM);
+  const cappedSurface = Math.min(surfaceM2, MAX_SURFACE_FOR_VOLUME_CHECK_M2);
+  const volumeForCheck = computeVolume(cappedSurface, heightM);
+  const concentration = chargeKg / volumeForCheck;
+
+  const [rcl, rclSource] = deriveRcl(fluid);
+  const [qlav, qlavSource] = deriveQlav(fluid);
+  const [qlmv, qlmvSource] = deriveQlmv(fluid, rcl, qlav);
+  const [eligible, eligibilityNote] = isMethodBEligible(fluid, chargeKg);
+
+  const lowerBound = isLowestBasementLevel ? rcl : qlmv;
+  let conformity, measures;
+  if (qlav != null && concentration > qlav){ conformity='Non conforme'; measures=2; }
+  else if (lowerBound != null && concentration <= lowerBound){ conformity='Conforme'; measures=0; }
+  else if (isLowestBasementLevel && qlmv != null && concentration > qlmv){ conformity='Conforme sous conditions'; measures=2; }
+  else if (lowerBound != null){ conformity='Conforme sous conditions'; measures=1; }
+  else { conformity='Non conforme'; measures=0; }
+
+  const minVolume = lowerBound ? chargeKg / lowerBound : null;
+  const minSurface = (minVolume && heightM) ? minVolume / heightM : null;
+
+  return {
+    volume_m3: round(volume,3), volume_used_for_check_m3: round(volumeForCheck,3),
+    concentration_kg_m3: round(concentration,5),
+    rcl_kg_m3: rcl!=null?round(rcl,5):null, rcl_source: rclSource,
+    qlmv_kg_m3: qlmv!=null?round(qlmv,5):null, qlmv_source: qlmvSource,
+    qlav_kg_m3: qlav!=null?round(qlav,5):null, qlav_source: qlavSource,
+    conformity, measures_required: measures, is_lowest_basement_level: isLowestBasementLevel,
+    min_volume_required_m3: minVolume!=null?round(minVolume,3):null,
+    min_surface_required_m2: minSurface!=null?round(minSurface,3):null,
+    eligible, eligibility_note: eligibilityNote,
+  };
+}
+
+function computeConcentration(fluid, chargeKg, surfaceM2, heightM, systemType, mountingType, isLowestBasementLevel){
+  const general = computeGeneralMethod(fluid, chargeKg, surfaceM2, heightM, isLowestBasementLevel);
+  const notes = [];
+  if (!general.eligible && general.eligibility_note) notes.push(general.eligibility_note);
+
+  let splitResult = null;
+  const useMethodA = systemType && COMFORT_AC_SYSTEM_TYPES.has(systemType) && mountingType != null && mountingType !== '' && isFlammable(fluid.safety_group);
+  if (useMethodA) splitResult = computeSplitSystemLimit(fluid, chargeKg, surfaceM2, mountingType);
+
+  let methodUsed, conformity, limitUsed, limitType, volumeM3, concentration, marginRatio, minVolume, minSurface;
+  if (splitResult && splitResult.applicable){
+    methodUsed = 'A';
+    conformity = splitResult.conformity || 'Conforme';
+    limitUsed = splitResult.mmax_kg;
+    limitType = 'mmax (Formule C.1)';
+    volumeM3 = general.volume_m3;
+    concentration = volumeM3 ? chargeKg / volumeM3 : 0.0;
+    marginRatio = limitUsed ? chargeKg / limitUsed : 0.0;
+    minVolume = null;
+    minSurface = splitResult.amin_m2;
+    notes.push(`Méthode C.2 appliquée (conditionnement d'air / PAC de confort, fluide inflammable ${fluid.safety_group}) : charge comparée à la charge maximale admissible mmax (Formule C.1) pour la surface réelle du local.`);
+    if (!splitResult.charge_above_threshold){
+      notes.push(`Charge (${chargeKg} kg) inférieure au seuil réglementaire (${splitResult.threshold_kg} kg) : aucune restriction de surface n'est requise par la Formule (C.1).`);
+    }
+  } else {
+    methodUsed = 'B';
+    conformity = general.conformity;
+    limitUsed = isLowestBasementLevel ? general.rcl_kg_m3 : general.qlmv_kg_m3;
+    limitType = isLowestBasementLevel ? 'RCL' : 'QLMV';
+    volumeM3 = general.volume_m3;
+    concentration = general.concentration_kg_m3;
+    marginRatio = limitUsed ? concentration / limitUsed : 0.0;
+    minVolume = general.min_volume_required_m3;
+    minSurface = general.min_surface_required_m2;
+    if (splitResult && !splitResult.applicable && splitResult.reason) notes.push(splitResult.reason);
+    notes.push(`Méthode C.3 appliquée (autre solution pour la gestion des risques) : comparaison de la concentration à la ${limitType} et à la QLAV.`);
+  }
+
+  return {
+    method_used: methodUsed, general, split_system: splitResult,
+    conformity, margin_ratio: round(marginRatio,3),
+    volume_m3: volumeM3, concentration_kg_m3: round(concentration,5),
+    limit_used_kg_m3: limitUsed!=null?round(limitUsed,5):null, limit_type: limitType,
+    min_volume_required_m3: minVolume, min_surface_required_m2: minSurface,
+    notes,
+  };
+}
+
+function multiRoomAnalysis(analyses){
+  if (!analyses.length) throw new Error('Aucun local à analyser.');
+  const order = {'Non conforme':2, 'Conforme sous conditions':1, 'Conforme':0};
+  let worst = analyses[0];
+  for (const a of analyses){
+    if (order[a.result.conformity] > order[worst.result.conformity] ||
+        (order[a.result.conformity] === order[worst.result.conformity] && a.result.margin_ratio > worst.result.margin_ratio)){
+      worst = a;
+    }
+  }
+  let globalConformity = 'Conforme';
+  if (analyses.some(a=>a.result.conformity==='Non conforme')) globalConformity = 'Non conforme';
+  else if (analyses.some(a=>a.result.conformity==='Conforme sous conditions')) globalConformity = 'Conforme sous conditions';
+  return {
+    worst_room: worst.room_name, worst_margin_ratio: worst.result.margin_ratio, global_conformity: globalConformity,
+    rooms: analyses.map(a => ({
+      room_name: a.room_name, conformity: a.result.conformity, concentration_kg_m3: a.result.concentration_kg_m3,
+      limit_used_kg_m3: a.result.limit_used_kg_m3, margin_ratio: a.result.margin_ratio,
+    })),
+  };
+}
+
+/* ---------------- Moteur de prédimensionnement (sizing.py) ---------------- */
+const BUILDING_RATIOS_W_M2 = {
+  tertiaire:{cooling:80,heating:60}, residentiel:{cooling:50,heating:70}, industriel:{cooling:60,heating:50},
+  commercial:{cooling:100,heating:65}, erp:{cooling:90,heating:70}, hotel:{cooling:70,heating:65},
+  sante:{cooling:85,heating:75}, logistique:{cooling:30,heating:25},
+};
+const CLIMATE_ZONE_FACTORS = { H1:{cooling:1.0,heating:1.15}, H2:{cooling:1.05,heating:1.0}, H3:{cooling:1.2,heating:0.85} };
+
+function estimateLoads(surfaceM2, buildingType, climateZone){
+  const ratios = BUILDING_RATIOS_W_M2[buildingType] || BUILDING_RATIOS_W_M2.tertiaire;
+  const factors = CLIMATE_ZONE_FACTORS[climateZone] || CLIMATE_ZONE_FACTORS.H2;
+  return {
+    cooling_power_kw: round(surfaceM2 * ratios.cooling * factors.cooling / 1000, 2),
+    heating_power_kw: round(surfaceM2 * ratios.heating * factors.heating / 1000, 2),
+  };
+}
+function suggestSystemType(coolingPowerKw, indoorUnitsHint){
+  if (indoorUnitsHint && indoorUnitsHint > 8) return 'DRV';
+  if (coolingPowerKw <= 5) return 'Split';
+  if (coolingPowerKw <= 16) return 'Multi-split';
+  if (coolingPowerKw <= 150) return 'DRV';
+  return 'Groupe eau glacee';
+}
+function estimateProbableCharge(systemType, coolingPowerKw, fluidCode, indoorUnits, pipeLengthEstimateM){
+  const ratioMap = {'DRV':0.35,'Multi-split':0.30,'Split':0.28,'Groupe eau glacee':0.20,'PAC':0.30,'Centrale frigorifique':0.40,'Meuble frigorifique':0.15};
+  const ratio = ratioMap[systemType] ?? 0.30;
+  const factoryCharge = round(coolingPowerKw * ratio, 2);
+  let pipeLength = pipeLengthEstimateM;
+  if (pipeLength == null) pipeLength = Math.max(indoorUnits||1,1) * 5;
+  const additionalPerM = (systemType==='DRV'||systemType==='Multi-split') ? 0.03 : 0.02;
+  const additionalCharge = round(pipeLength * additionalPerM, 2);
+  const totalCharge = round(factoryCharge + additionalCharge, 2);
+  const chargePerUnit = round(totalCharge / Math.max(indoorUnits||1,1), 3);
+  return { factory_charge_kg:factoryCharge, additional_charge_kg:additionalCharge, total_charge_kg:totalCharge,
+           charge_per_indoor_unit_kg:chargePerUnit, estimated_pipe_length_m:pipeLength, fluid_code:fluidCode };
+}
+
+/* ---------------- Arbre de décision (decision_engine.py) ---------------- */
+function recommend(safetyGroup, conformity, marginRatio, roomType){
+  const recs = [];
+  if (conformity === 'Conforme'){
+    recs.push({measure:'Aucune mesure complémentaire obligatoire', reason:'La concentration calculée respecte la limite applicable.', priority:'info'});
+    return recs;
+  }
+  const flammable = isFlammable(safetyGroup);
+  recs.push({measure:'Détecteur de fuite de fluide frigorigène',
+    reason:"Concentration proche ou supérieure à la limite : la détection permet une alarme précoce et l'activation d'une ventilation ou d'un arrêt d'urgence.",
+    priority: conformity==='Non conforme' ? 'haute' : 'moyenne'});
+  recs.push({measure:'Ventilation mécanique (naturelle ou forcée)',
+    reason:'Réduit la concentration résiduelle en cas de fuite et permet souvent de repasser sous la limite réglementaire sans réduire la charge.',
+    priority: conformity==='Non conforme' ? 'haute' : 'moyenne'});
+  if (flammable){
+    recs.push({measure:"Électrovanne de sécurité (coupure d'alimentation fluide)",
+      reason:'Fluide inflammable (groupe A2L/A2/A3) : limite la masse pouvant être relâchée en cas de fuite détectée.', priority:'haute'});
+  }
+  if (marginRatio > 1.5){
+    recs.push({measure:'Réduction de la charge de fluide (fractionnement des circuits)',
+      reason:`Le ratio concentration/limite (${marginRatio.toFixed(2)}) dépasse largement la tolérance : envisager plusieurs circuits de charge réduite plutôt qu'un circuit unique.`,
+      priority:'haute'});
+  }
+  if (roomType && ['erp','chambre','hotel','sante'].includes(String(roomType).toLowerCase())){
+    recs.push({measure:'Cloisonnement / éloignement des locaux occupés',
+      reason:`Type de local sensible (${roomType}) : limiter l'exposition du public en isolant la zone technique ou en augmentant la distance aux locaux occupés.`,
+      priority:'moyenne'});
+  } else {
+    recs.push({measure:'Cloisonnement de la zone technique', reason:"Réduit le volume d'occupation exposé en cas de fuite.",
+      priority: conformity==='Conforme sous conditions' ? 'moyenne' : 'haute'});
+  }
+  return recs;
+}
+
+/* ---------------- Extraction heuristique (cctp_analysis.py) ---------------- */
+const ROOM_TYPE_KEYWORDS = [
+  ['bureau','bureau'],['salle de réunion','salle_reunion'],['chambre','chambre'],['hôtel','hotel'],
+  ['hall','erp'],['accueil','erp'],['commerce','erp'],['boutique','erp'],['laboratoire','laboratoire'],
+  ['local technique','local_technique'],['chaufferie','local_technique'],['sous-station','local_technique'],
+  ['cuisine','commercial'],['restaurant','erp'],['atelier','industriel'],['entrepôt','logistique'],
+];
+function suggestSystemForRoomType(roomType){
+  const mapping = {bureau:'DRV', salle_reunion:'DRV', chambre:'Multi-split', hotel:'Multi-split', erp:'DRV',
+    laboratoire:'Groupe eau glacee', local_technique:'Centrale frigorifique', commercial:'Meuble frigorifique',
+    industriel:'PAC', logistique:'PAC'};
+  return mapping[roomType] || 'DRV';
+}
+function heuristicExtractRooms(text){
+  const rooms = []; const seen = new Set();
+  const pattern = /([A-Za-zÀ-ÿ][\w'À-ÿ \-]{2,60}?)\s*[:\-]\s*(\d{1,4}(?:[.,]\d+)?)\s*m(?:2|²)/gi;
+  let m;
+  while ((m = pattern.exec(text)) !== null){
+    let name = m[1].trim().replace(/^[\s.:\-]+|[\s.:\-]+$/g,'');
+    const surface = parseFloat(m[2].replace(',','.'));
+    if (!name || isNaN(surface) || seen.has(name.toLowerCase())) continue;
+    seen.add(name.toLowerCase());
+    let roomType = 'bureau';
+    const lower = name.toLowerCase();
+    for (const [kw,rtype] of ROOM_TYPE_KEYWORDS){ if (lower.includes(kw)){ roomType = rtype; break; } }
+    rooms.push({room_name:name, room_type:roomType, surface_m2:surface, suggested_system_type:suggestSystemForRoomType(roomType)});
+  }
+  return rooms;
+}
+
+/* =========================================================================
+   Données par défaut (fluides / équipements) — portage de fluids_db.py /
+   equipment_db.py
+   ========================================================================= */
+const DEFAULT_FLUIDS = [
+  {code:'R32', name:'R32 (Difluorométhane)', safety_group:'A2L', lfl_kg_m3:0.307, practical_limit_kg_m3:0.061, atel_odl_kg_m3:0.30, molar_mass_g_mol:52.0, gwp:675, rcl_kg_m3:0.061, qlmv_kg_m3:0.063, qlav_kg_m3:0.15, source:'NF EN 378-1+A1:2020, Annexe E (Tableau E.1) et Tableau C.3'},
+  {code:'R410A', name:'R410A (R32/R125, 50/50)', safety_group:'A1', lfl_kg_m3:null, practical_limit_kg_m3:0.44, atel_odl_kg_m3:0.42, molar_mass_g_mol:72.6, gwp:2088, rcl_kg_m3:0.39, qlmv_kg_m3:0.42, qlav_kg_m3:0.42, source:'NF EN 378-1+A1:2020, Annexe E (Tableau E.2) et Tableau C.3'},
+  {code:'R454B', name:'R454B (R32/R1234yf, 68.9/31.1)', safety_group:'A2L', lfl_kg_m3:0.297, practical_limit_kg_m3:0.059, atel_odl_kg_m3:0.358, molar_mass_g_mol:62.6, gwp:466, rcl_kg_m3:null, qlmv_kg_m3:null, qlav_kg_m3:null, source:"NF EN 378-1+A1:2020, Annexe E (Tableau E.2, réf. 454B) — RCL/QLMV/QLAV non tabulées en Annexe C, calculées selon C.3.2.1 et le Tableau C.4"},
+  {code:'R290', name:'R290 (Propane)', safety_group:'A3', lfl_kg_m3:0.038, practical_limit_kg_m3:0.008, atel_odl_kg_m3:0.09, molar_mass_g_mol:44.1, gwp:3, rcl_kg_m3:null, qlmv_kg_m3:null, qlav_kg_m3:null, source:"NF EN 378-1+A1:2020, Annexe E (Tableau E.1) — RCL/QLMV/QLAV non tabulées. Pour la climatisation/PAC de confort, la méthode C.2 (Formules C.1/C.2) s'applique directement (voir Annexe H)."},
+  {code:'R744', name:'R744 (CO2)', safety_group:'A1', lfl_kg_m3:null, practical_limit_kg_m3:0.1, atel_odl_kg_m3:0.072, molar_mass_g_mol:44.0, gwp:1, rcl_kg_m3:0.072, qlmv_kg_m3:0.074, qlav_kg_m3:0.18, source:'NF EN 378-1+A1:2020, Annexe E (Tableau E.1) et Tableau C.3 (QLAV basée sur 10% vol. — effet anesthésiant aigu)'},
+  {code:'R1234ze', name:'R1234ze(E)', safety_group:'A2L', lfl_kg_m3:0.303, practical_limit_kg_m3:0.061, atel_odl_kg_m3:0.28, molar_mass_g_mol:114.0, gwp:1, rcl_kg_m3:0.061, qlmv_kg_m3:0.063, qlav_kg_m3:0.15, source:'NF EN 378-1+A1:2020, Annexe E (Tableau E.1) et Tableau C.3'},
+  {code:'R1234yf', name:'R1234yf', safety_group:'A2L', lfl_kg_m3:0.289, practical_limit_kg_m3:0.058, atel_odl_kg_m3:0.28, molar_mass_g_mol:114.0, gwp:4, rcl_kg_m3:0.058, qlmv_kg_m3:0.060, qlav_kg_m3:0.14, source:'NF EN 378-1+A1:2020, Annexe E (Tableau E.1) et Tableau C.3'},
+  {code:'R134a', name:'R134a', safety_group:'A1', lfl_kg_m3:null, practical_limit_kg_m3:0.25, atel_odl_kg_m3:0.21, molar_mass_g_mol:102.0, gwp:1430, rcl_kg_m3:0.21, qlmv_kg_m3:0.28, qlav_kg_m3:0.58, source:'NF EN 378-1+A1:2020, Annexe E (Tableau E.1) et Tableau C.3 (exemple normatif Annexe H.3)'},
+  {code:'R404A', name:'R404A (R125/143a/134a, 44/52/4)', safety_group:'A1', lfl_kg_m3:null, practical_limit_kg_m3:0.52, atel_odl_kg_m3:0.52, molar_mass_g_mol:97.6, gwp:3922, rcl_kg_m3:null, qlmv_kg_m3:null, qlav_kg_m3:null, source:'NF EN 378-1+A1:2020, Annexe E (Tableau E.2) — RCL/QLMV/QLAV non tabulées, calculées par l’application'},
+  {code:'R507A', name:'R507A (R125/143a, 50/50)', safety_group:'A1', lfl_kg_m3:null, practical_limit_kg_m3:0.53, atel_odl_kg_m3:0.53, molar_mass_g_mol:98.9, gwp:3985, rcl_kg_m3:null, qlmv_kg_m3:null, qlav_kg_m3:null, source:'NF EN 378-1+A1:2020, Annexe E (Tableau E.3) — RCL/QLMV/QLAV non tabulées, calculées par l’application'},
+];
+
+const MANUFACTURERS = ['Daikin','Mitsubishi Electric','Mitsubishi Heavy','Toshiba','Hitachi','Samsung','LG','Panasonic'];
+const DEFAULT_EQUIPMENT = {
+  'Daikin': [
+    {reference:'VRV 5 RXYQ8T', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:8.0, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:17},
+    {reference:'Perfera FTXM35', system_type:'Split', fluid_code:'R32', cooling_power_kw:3.5, heating_power_kw:4.0, factory_charge_kg:1.0, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+  ],
+  'Mitsubishi Electric': [
+    {reference:'City Multi PURY-P200', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:7.5, additional_charge_kg_per_m:0.08, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+    {reference:'MSZ-AP35VG', system_type:'Split', fluid_code:'R32', cooling_power_kw:3.5, heating_power_kw:4.2, factory_charge_kg:0.9, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+  ],
+  'Mitsubishi Heavy': [
+    {reference:'FDC-VNP DRV', system_type:'DRV', fluid_code:'R410A', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:9.0, additional_charge_kg_per_m:0.09, max_pipe_length_m:150, max_equivalent_length_m:175, max_indoor_units:16},
+  ],
+  'Toshiba': [
+    {reference:'SHRM-e DRV', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:8.2, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+  ],
+  'Hitachi': [
+    {reference:'Set Free VRF FSXN', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:8.0, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+  ],
+  'Samsung': [
+    {reference:'DVM S2 AM220', system_type:'DRV', fluid_code:'R410A', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:9.5, additional_charge_kg_per_m:0.09, max_pipe_length_m:150, max_equivalent_length_m:175, max_indoor_units:16},
+  ],
+  'LG': [
+    {reference:'Multi V 5 ARUN220', system_type:'DRV', fluid_code:'R410A', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:9.2, additional_charge_kg_per_m:0.09, max_pipe_length_m:150, max_equivalent_length_m:175, max_indoor_units:16},
+  ],
+  'Panasonic': [
+    {reference:'PACi Elite / ECOi', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:8.1, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+  ],
+};
+
+const BUILDING_TYPES = ['tertiaire','residentiel','industriel','commercial','erp','hotel','sante','logistique'];
+const ROOM_TYPES = ['bureau','salle_reunion','chambre','hotel','erp','laboratoire','local_technique','commercial','industriel','logistique'];
+const SYSTEM_TYPES = ['DRV','Multi-split','Split','Groupe eau glacee','PAC','Centrale frigorifique','Meuble frigorifique'];
+const ACCESS_CATEGORIES = ['Accès général (a)','Accès surveillé (b)','Accès réservé (c)'];
+const MOUNTING_TYPES = [['floor','Plancher'],['wall','Montage au mur'],['window','Montage sur fenêtre'],['ceiling','Montage au plafond']];
+const FLAMMABLE_GROUPS = ['A2L','A2','A3'];
+const CONFORMITY_COLORS = {'Conforme':'#2e7d32','Conforme sous conditions':'#ed6c02','Non conforme':'#c62828'};
+
+/* =========================================================================
+   Persistance (localStorage)
+   ========================================================================= */
+const STORAGE_KEY = 'en378_calculateur_v1';
+let DB;
+function loadDB(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  }catch(e){ console.warn('localStorage indisponible', e); }
+  return {
+    projects: [], rooms: {}, calculations: {},
+    fluids: DEFAULT_FLUIDS.map(f => Object.assign({id: uid('fl'), editable:true}, f)),
+    equipment: (() => {
+      const list = [];
+      for (const mfr of MANUFACTURERS){
+        for (const e of (DEFAULT_EQUIPMENT[mfr]||[])) list.push(Object.assign({id: uid('eq'), manufacturer:mfr}, e));
+      }
+      return list;
+    })(),
+    company: {}, currentProjectId: null, nextCalcId: 1,
+  };
+}
+function saveDB(){
+  try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(DB)); }
+  catch(e){ console.warn('Impossible d’enregistrer (localStorage plein ou indisponible)', e); }
+}
+function getFluid(code){ return DB.fluids.find(f => f.code === code); }
+function fluidToEngine(f){ return f; }
+function currentProject(){ return DB.projects.find(p => p.id === DB.currentProjectId) || null; }
+
+/* =========================================================================
+   Application (rendu / événements)
+   ========================================================================= */
+const App = {};
+
+App.init = function(){
+  DB = loadDB();
+  saveDB();
+  this.wireNav();
+  this.populateStaticSelects();
+  this.setPage('nouveau-projet');
+  this.renderNewProjectPage();
+  this.addCircuit();
+  this.addMultiRoom(); this.addMultiRoom();
+  this.renderFluidSelectors();
+  this.renderFluidLibrary();
+  this.renderEquipmentFilters();
+  this.renderEquipmentList();
+  this.renderSettingsPage();
+  this.wireLiveHints();
+};
+
+App.wireNav = function(){
+  document.querySelectorAll('.nav-item').forEach(btn => {
+    btn.addEventListener('click', () => this.setPage(btn.dataset.page));
+  });
+};
+
+const PAGE_TITLES = {
+  'nouveau-projet':'Nouveau projet', 'calcul-rapide':'Calcul rapide — Prédimensionnement',
+  'calcul-expert':'Calcul expert — Analyse détaillée NF EN 378-1', 'bibliotheque-fluides':'Bibliothèque fluides frigorigènes',
+  'bibliotheque-equipements':'Bibliothèque équipements constructeurs', 'assistant-ia':'Assistant IA — Analyse de CCTP',
+  'rapports':'Rapports', 'parametres':'Paramètres',
+};
+App.setPage = function(name){
+  document.querySelectorAll('.page').forEach(el => el.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.toggle('active', el.dataset.page===name));
+  document.getElementById('pageTitle').textContent = PAGE_TITLES[name] || '';
+  if (name === 'nouveau-projet') this.renderNewProjectPage();
+  if (name === 'rapports') this.renderReportsPage();
+};
+
+App.populateStaticSelects = function(){
+  const fill = (id, items, labelFn) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    items.forEach(it => {
+      const opt = document.createElement('option');
+      opt.value = labelFn ? it[0] : it; opt.textContent = labelFn ? labelFn(it) : it;
+      el.appendChild(opt);
+    });
+  };
+  ['qc-room-type','circ-room-type'].forEach(id => fill(id, ROOM_TYPES));
+  fill('qc-system-type', SYSTEM_TYPES);
+  fill('circ-system-type', SYSTEM_TYPES);
+  ['qc-access','circ-access'].forEach(id => fill(id, ACCESS_CATEGORIES));
+  ['qc-mounting','circ-mounting'].forEach(id => fill(id, MOUNTING_TYPES, x=>x[1]));
+  fill('eq-filter-manufacturer', MANUFACTURERS);
+  fill('eq-filter-system', SYSTEM_TYPES);
+};
+
+App.renderFluidSelectors = function(){
+  document.querySelectorAll('.fluid-select').forEach(sel => {
+    const current = sel.value;
+    sel.innerHTML = '';
+    DB.fluids.forEach(f => {
+      const opt = document.createElement('option');
+      opt.value = f.code; opt.textContent = `${f.code} — ${f.name} (${f.safety_group})`;
+      sel.appendChild(opt);
+    });
+    if (current && DB.fluids.some(f=>f.code===current)) sel.value = current;
+  });
+  const qcFluid = document.getElementById('qc-fluid');
+  if (qcFluid && !qcFluid.classList.contains('fluid-select')){
+    qcFluid.classList.add('fluid-select');
+    qcFluid.innerHTML = '';
+    DB.fluids.forEach(f => { const opt=document.createElement('option'); opt.value=f.code; opt.textContent=`${f.code} — ${f.name} (${f.safety_group})`; qcFluid.appendChild(opt); });
+    qcFluid.value = 'R32';
+  }
+};
+
+App.wireLiveHints = function(){
+  const upd = () => {
+    const s = parseFloat(document.getElementById('qc-surface').value)||0;
+    const h = parseFloat(document.getElementById('qc-height').value)||0;
+    document.getElementById('qc-volume-hint').textContent = `Volume calculé : ${(s*h).toFixed(1)} m³`;
+  };
+  document.getElementById('qc-surface').addEventListener('input', upd);
+  document.getElementById('qc-height').addEventListener('input', upd);
+  upd();
+  const toggleMount = () => {
+    const fluid = getFluid(document.getElementById('qc-fluid').value);
+    const sys = document.getElementById('qc-system-type').value || 'DRV';
+    const show = fluid && FLAMMABLE_GROUPS.includes(fluid.safety_group) && COMFORT_AC_SYSTEM_TYPES.has(sys);
+    document.getElementById('qc-mounting-field').classList.toggle('hidden', !show);
+  };
+  document.getElementById('qc-fluid').addEventListener('change', toggleMount);
+  document.getElementById('qc-system-type').addEventListener('change', toggleMount);
+  toggleMount();
+
+  const toggleMountCirc = () => {
+    const firstFluidCode = document.querySelector('#circ-list .circuit-fluid')?.value;
+    const fluid = firstFluidCode ? getFluid(firstFluidCode) : null;
+    const sys = document.getElementById('circ-system-type').value || 'DRV';
+    const show = fluid && FLAMMABLE_GROUPS.includes(fluid.safety_group) && COMFORT_AC_SYSTEM_TYPES.has(sys);
+    document.getElementById('circ-mounting-field').classList.toggle('hidden', !show);
+  };
+  document.getElementById('circ-system-type').addEventListener('change', toggleMountCirc);
+  App._toggleMountCirc = toggleMountCirc;
+};
+
+/* ---------------------- Page : Nouveau projet ---------------------- */
+App.renderNewProjectPage = function(){
+  const cp = currentProject();
+  document.getElementById('np-current-alert').innerHTML = cp
+    ? `<div class="alert info">Projet courant : <b>${escapeHtml(cp.name)}</b> (utilisé automatiquement dans les modes Calcul rapide / Calcul expert / Rapports).</div>` : '';
+  const tbody = document.getElementById('np-project-list');
+  if (!DB.projects.length){
+    tbody.innerHTML = `<tr><td colspan="5" style="color:var(--muted);">Aucun projet pour le moment.</td></tr>`;
+  } else {
+    tbody.innerHTML = DB.projects.slice().sort((a,b)=>b.updated_at-a.updated_at).map(p => `
+      <tr>
+        <td>${escapeHtml(p.name)}</td><td>${escapeHtml(p.client||'-')}</td><td>${escapeHtml(p.building_type||'-')}</td>
+        <td>${new Date(p.updated_at).toLocaleString('fr-FR')}</td>
+        <td style="text-align:right;">${p.id===DB.currentProjectId ? '<span class="chip">Sélectionné</span>' : `<button class="btn small outline" onclick="App.selectProject('${p.id}')">Sélectionner</button>`}</td>
+      </tr>`).join('');
+  }
+};
+App.createProject = function(){
+  const name = document.getElementById('np-name').value.trim();
+  const msg = document.getElementById('np-message');
+  if (!name){ msg.innerHTML = '<div class="alert error">Le nom du projet est requis.</div>'; return; }
+  const p = {
+    id: uid('proj'), name, client: document.getElementById('np-client').value.trim(),
+    address: document.getElementById('np-address').value.trim(), building_type: document.getElementById('np-building-type').value,
+    author: document.getElementById('np-author').value.trim(), notes: document.getElementById('np-notes').value.trim(),
+    created_at: Date.now(), updated_at: Date.now(),
+  };
+  DB.projects.push(p); DB.rooms[p.id] = []; DB.calculations[p.id] = [];
+  DB.currentProjectId = p.id; saveDB();
+  msg.innerHTML = `<div class="alert success">Projet « ${escapeHtml(name)} » créé et sélectionné comme projet courant.</div>`;
+  ['np-name','np-client','np-address','np-author','np-notes'].forEach(id => document.getElementById(id).value = '');
+  this.renderNewProjectPage();
+};
+App.selectProject = function(id){ DB.currentProjectId = id; saveDB(); this.renderNewProjectPage(); this.renderReportsPage(); };
+
+/* ---------------------- Page : Calcul rapide ---------------------- */
+App.runQuickCalc = function(){
+  const errBox = document.getElementById('qc-error'); errBox.innerHTML = '';
+  try{
+    const fluidCode = document.getElementById('qc-fluid').value;
+    const fluid = getFluid(fluidCode);
+    const buildingType = document.getElementById('qc-building-type').value;
+    const surface = parseFloat(document.getElementById('qc-surface').value);
+    const height = parseFloat(document.getElementById('qc-height').value);
+    const climate = document.getElementById('qc-climate').value;
+    const roomType = document.getElementById('qc-room-type').value;
+    const roomName = document.getElementById('qc-room-name').value || 'Local';
+    const indoorUnits = parseInt(document.getElementById('qc-indoor-units').value)||1;
+    let systemType = document.getElementById('qc-system-type').value;
+    const mountingField = document.getElementById('qc-mounting-field');
+    const mountingType = !mountingField.classList.contains('hidden') ? document.getElementById('qc-mounting').value : null;
+    const isBasement = document.getElementById('qc-basement').checked;
+
+    const loads = estimateLoads(surface, buildingType, climate);
+    const coolingPower = parseFloat(document.getElementById('qc-cooling-power').value) || loads.cooling_power_kw;
+    if (!systemType) systemType = suggestSystemType(coolingPower, indoorUnits);
+    const chargeEstimate = estimateProbableCharge(systemType, coolingPower, fluidCode, indoorUnits);
+
+    const result = computeConcentration(fluid, chargeEstimate.total_charge_kg, surface, height, systemType, mountingType, isBasement);
+    const recs = recommend(fluid.safety_group, result.conformity, result.margin_ratio, roomType);
+
+    const equipMatches = DB.equipment.filter(e => e.system_type===systemType && e.fluid_code===fluidCode && e.cooling_power_kw>=coolingPower)
+      .sort((a,b)=>a.cooling_power_kw-b.cooling_power_kw).slice(0,5);
+
+    if (DB.currentProjectId){
+      this.saveCalculation(DB.currentProjectId, 'rapide', roomName, fluidCode, chargeEstimate.total_charge_kg, result, recs);
+    }
+
+    this.renderQuickCalcResult({loads, suggested_system_type:systemType, charge_estimate:chargeEstimate, concentration:result, recommendations:recs, equipment_suggestions:equipMatches});
+  }catch(e){
+    errBox.innerHTML = `<div class="alert error">${escapeHtml(e.message)}</div>`;
+  }
+};
+
+App.renderQuickCalcResult = function(r){
+  const c = r.concentration;
+  const html = `
+    <div class="card">
+      <div class="flex between center" style="margin-bottom:14px;">
+        <h2 style="margin:0;">Résultats instantanés</h2>
+        <div class="flex gap center">
+          <span class="chip outline">${c.method_used==='A' ? 'Méthode C.2 (climatisation/PAC confort)' : 'Méthode C.3 (autre solution)'}</span>
+          ${riskChip(c.conformity)}
+        </div>
+      </div>
+      <div class="grid cols-2" style="align-items:center;">
+        <div style="display:flex;justify-content:center;">${gaugeSvg(c.margin_ratio, c.conformity)}</div>
+        <table><tbody>
+          <tr><td>Système proposé</td><td class="num"><span class="chip">${escapeHtml(r.suggested_system_type)}</span></td></tr>
+          <tr><td>Besoin froid / chaud</td><td class="num">${r.loads.cooling_power_kw} kW / ${r.loads.heating_power_kw} kW</td></tr>
+          <tr><td>Charge probable estimée</td><td class="num">${r.charge_estimate.total_charge_kg} kg</td></tr>
+          <tr><td>Charge / unité intérieure</td><td class="num">${r.charge_estimate.charge_per_indoor_unit_kg} kg</td></tr>
+          <tr><td>Volume du local</td><td class="num">${c.volume_m3} m³</td></tr>
+          <tr><td>Concentration calculée</td><td class="num">${c.concentration_kg_m3} kg/m³</td></tr>
+          <tr><td>Limite applicable (${c.limit_type})</td><td class="num">${c.limit_used_kg_m3 ?? '-'} ${c.method_used==='A'?'kg':'kg/m³'}</td></tr>
+          ${c.method_used==='B' ? `
+          <tr><td>RCL / QLMV / QLAV</td><td class="num">${c.general.rcl_kg_m3??'-'} / ${c.general.qlmv_kg_m3??'-'} / ${c.general.qlav_kg_m3??'-'} kg/m³</td></tr>
+          <tr><td>Mesures compensatoires requises</td><td class="num">${c.general.measures_required}</td></tr>` : ''}
+          ${c.method_used==='A' && c.split_system ? `<tr><td>Surface minimale requise (Amin)</td><td class="num">${c.split_system.amin_m2 ?? '-'} m²</td></tr>` : ''}
+        </tbody></table>
+      </div>
+      ${c.notes.length ? `<div style="margin-top:14px;">${c.notes.map(n=>`<div class="note-line">• ${escapeHtml(n)}</div>`).join('')}</div>` : ''}
+    </div>
+    <div class="card"><h2>Alertes et recommandations NF EN 378-1</h2>${r.recommendations.map(rec => alertBox(rec)).join('')}</div>
+    ${r.equipment_suggestions.length ? `
+    <div class="card"><h2>Équipements compatibles (bibliothèque)</h2>
+      <div class="table-scroll"><table><thead><tr><th>Référence</th><th>Puissance froid</th><th>Charge usine</th><th>Longueur max.</th></tr></thead>
+      <tbody>${r.equipment_suggestions.map(e=>`<tr><td>${escapeHtml(e.reference)}</td><td>${e.cooling_power_kw} kW</td><td>${e.factory_charge_kg} kg</td><td>${e.max_pipe_length_m??'-'} m</td></tr>`).join('')}</tbody>
+      </table></div></div>` : ''}
+  `;
+  document.getElementById('qc-result').innerHTML = html;
+};
+
+function riskChip(conformity){
+  const cls = conformity==='Conforme' ? 'conforme' : conformity==='Conforme sous conditions' ? 'sous-conditions' : 'non-conforme';
+  const icon = conformity==='Conforme' ? '✓' : conformity==='Conforme sous conditions' ? '⚠' : '✕';
+  return `<span class="chip ${cls}">${icon} ${escapeHtml(conformity)}</span>`;
+}
+function alertBox(rec){
+  const sev = rec.priority==='haute' ? 'error' : rec.priority==='moyenne' ? 'warning' : 'info';
+  return `<div class="alert ${sev}"><b>${escapeHtml(rec.measure)}</b> — ${escapeHtml(rec.reason)}</div>`;
+}
+function gaugeSvg(marginRatio, conformity){
+  const clamped = Math.min(marginRatio, 2);
+  const pct = Math.min(clamped/2, 1);
+  const angle = -90 + pct*180;
+  const color = CONFORMITY_COLORS[conformity] || '#616161';
+  const size=180, cx=size/2, cy=size/2, r=70;
+  const needleX = cx + r*0.85*Math.cos(angle*Math.PI/180);
+  const needleY = cy + r*0.85*Math.sin(angle*Math.PI/180);
+  function arc(p0,p1,col){
+    const a1=-90+p0*180, a2=-90+p1*180;
+    const x1=cx+r*Math.cos(a1*Math.PI/180), y1=cy+r*Math.sin(a1*Math.PI/180);
+    const x2=cx+r*Math.cos(a2*Math.PI/180), y2=cy+r*Math.sin(a2*Math.PI/180);
+    return `<path d="M ${x1} ${y1} A ${r} ${r} 0 0 1 ${x2} ${y2}" stroke="${col}" stroke-width="16" fill="none"/>`;
+  }
+  return `<div class="gauge-wrap"><svg width="${size}" height="${size/1.7+10}" viewBox="0 0 ${size} ${size/1.7+10}">
+    ${arc(0,0.5,'#2e7d32')}${arc(0.5,0.75,'#ed6c02')}${arc(0.75,1,'#c62828')}
+    <line x1="${cx}" y1="${cy}" x2="${needleX}" y2="${needleY}" stroke="#212121" stroke-width="3" stroke-linecap="round"/>
+    <circle cx="${cx}" cy="${cy}" r="5" fill="#212121"/></svg>
+    <div class="gauge-value" style="color:${color};">${(marginRatio*100).toFixed(0)}%</div>
+    <div class="gauge-label">concentration / limite applicable</div></div>`;
+}
+
+App.saveCalculation = function(projectId, mode, roomName, fluidCode, chargeKg, result, recs){
+  if (!DB.calculations[projectId]) DB.calculations[projectId] = [];
+  DB.calculations[projectId].push({
+    id: DB.nextCalcId++, room_name: roomName, mode, fluid_code: fluidCode, charge_kg: chargeKg,
+    volume_m3: result.volume_m3, concentration_kg_m3: result.concentration_kg_m3,
+    limit_used_kg_m3: result.limit_used_kg_m3, limit_type: result.limit_type, conformity: result.conformity,
+    recommendations: recs, created_at: Date.now(),
+  });
+  const p = currentProject(); if (p) p.updated_at = Date.now();
+  saveDB();
+};
+
+/* ---------------------- Page : Calcul expert (circuits) ---------------------- */
+App.circuits = [];
+App.addCircuit = function(){
+  const id = uid('c');
+  this.circuits.push({id, name:`Circuit ${this.circuits.length+1}`, fluid_code:'R32', factory_charge_kg:3, pipe_length_m:20,
+    additional_charge_kg_per_m:0.02, altimetry_m:0, equivalent_length_m:null, zone_count:1, indoor_unit_count:1});
+  this.renderCircuits();
+};
+App.removeCircuit = function(id){ this.circuits = this.circuits.filter(c=>c.id!==id); this.renderCircuits(); };
+App.renderCircuits = function(){
+  const wrap = document.getElementById('circ-list');
+  wrap.innerHTML = this.circuits.map((c,idx) => `
+    <div class="card" style="background:#fafbfc;padding:14px;margin-bottom:10px;">
+      <div class="flex between center"><h3 style="margin:0;">Circuit ${idx+1}</h3>
+        <button class="btn-icon" ${this.circuits.length===1?'disabled':''} onclick="App.removeCircuit('${c.id}')">🗑️</button></div>
+      <div class="grid cols-2" style="gap:10px;margin-top:8px;">
+        <div class="field" style="margin-bottom:0;"><label>Nom</label><input type="text" value="${escapeHtml(c.name)}" oninput="App.updateCircuit('${c.id}','name',this.value)"></div>
+        <div class="field" style="margin-bottom:0;"><label>Fluide</label><select class="fluid-select circuit-fluid" onchange="App.updateCircuit('${c.id}','fluid_code',this.value); App._toggleMountCirc && App._toggleMountCirc();"></select></div>
+        <div class="field" style="margin-bottom:0;"><label>Charge usine (kg)</label><input type="number" value="${c.factory_charge_kg}" oninput="App.updateCircuit('${c.id}','factory_charge_kg',parseFloat(this.value)||0)"></div>
+        <div class="field" style="margin-bottom:0;"><label>Longueur réseau (m)</label><input type="number" value="${c.pipe_length_m}" oninput="App.updateCircuit('${c.id}','pipe_length_m',parseFloat(this.value)||0)"></div>
+        <div class="field" style="margin-bottom:0;"><label>Longueur équivalente (m)</label><input type="number" value="${c.equivalent_length_m??''}" oninput="App.updateCircuit('${c.id}','equivalent_length_m',this.value?parseFloat(this.value):null)"></div>
+        <div class="field" style="margin-bottom:0;"><label>Charge compl. (kg/m)</label><input type="number" value="${c.additional_charge_kg_per_m}" oninput="App.updateCircuit('${c.id}','additional_charge_kg_per_m',parseFloat(this.value)||0)"></div>
+        <div class="field" style="margin-bottom:0;"><label>Altimétrie (m)</label><input type="number" value="${c.altimetry_m}" oninput="App.updateCircuit('${c.id}','altimetry_m',parseFloat(this.value)||0)"></div>
+        <div class="field" style="margin-bottom:0;"><label>Nb zones</label><input type="number" value="${c.zone_count}" oninput="App.updateCircuit('${c.id}','zone_count',parseInt(this.value)||1)"></div>
+        <div class="field" style="margin-bottom:0;"><label>Nb unités intérieures</label><input type="number" value="${c.indoor_unit_count}" oninput="App.updateCircuit('${c.id}','indoor_unit_count',parseInt(this.value)||1)"></div>
+      </div>
+    </div>`).join('');
+  this.renderFluidSelectors();
+  document.querySelectorAll('.circuit-fluid').forEach((sel,i) => { sel.value = this.circuits[i].fluid_code; });
+};
+App.updateCircuit = function(id, field, value){ const c = this.circuits.find(c=>c.id===id); if (c) c[field]=value; };
+
+App.runExpertCalc = function(){
+  const errBox = document.getElementById('circ-error'); errBox.innerHTML='';
+  try{
+    if (!this.circuits.length) throw new Error('Au moins un circuit est requis');
+    let totalCharge = 0; const circuitTotals = []; let dominantFluidCode = this.circuits[0].fluid_code; let maxTotal=-1;
+    for (const c of this.circuits){
+      const additional = c.additional_charge_kg_per_m * (c.equivalent_length_m || c.pipe_length_m);
+      const total = round(c.factory_charge_kg + additional, 3);
+      totalCharge += total;
+      circuitTotals.push({name:c.name, factory_charge_kg:c.factory_charge_kg, additional_charge_kg:round(additional,3),
+        total_charge_kg:total, charge_per_zone_kg:round(total/Math.max(c.zone_count,1),3), charge_per_indoor_unit_kg:round(total/Math.max(c.indoor_unit_count,1),3)});
+      if (total > maxTotal){ maxTotal = total; dominantFluidCode = c.fluid_code; }
+    }
+    const fluid = getFluid(dominantFluidCode);
+    const surface = parseFloat(document.getElementById('circ-surface').value);
+    const height = parseFloat(document.getElementById('circ-height').value);
+    const roomName = document.getElementById('circ-room-name').value || 'Local';
+    const roomType = document.getElementById('circ-room-type').value;
+    const systemType = document.getElementById('circ-system-type').value || null;
+    const mountingField = document.getElementById('circ-mounting-field');
+    const mountingType = !mountingField.classList.contains('hidden') ? document.getElementById('circ-mounting').value : null;
+    const isBasement = document.getElementById('circ-basement').checked;
+
+    const result = computeConcentration(fluid, round(totalCharge,3), surface, height, systemType, mountingType, isBasement);
+    const recs = recommend(fluid.safety_group, result.conformity, result.margin_ratio, roomType);
+
+    if (DB.currentProjectId) this.saveCalculation(DB.currentProjectId, 'expert', roomName, dominantFluidCode, round(totalCharge,3), result, recs);
+
+    this.renderExpertResult({circuits:circuitTotals, total_charge_kg:round(totalCharge,3), dominant_fluid_code:dominantFluidCode, concentration:result, recommendations:recs});
+  }catch(e){
+    errBox.innerHTML = `<div class="alert error">${escapeHtml(e.message)}</div>`;
+  }
+};
+App.renderExpertResult = function(r){
+  const c = r.concentration;
+  document.getElementById('circ-result').innerHTML = `
+    <div class="card">
+      <div class="flex between center" style="margin-bottom:10px;"><h2 style="margin:0;">Résultat NF EN 378-1</h2>
+        <div class="flex gap center"><span class="chip outline">${c.method_used==='A'?'Méthode C.2':'Méthode C.3'}</span>${riskChip(c.conformity)}</div></div>
+      <div style="display:flex;justify-content:center;margin-bottom:10px;">${gaugeSvg(c.margin_ratio, c.conformity)}</div>
+      <table><tbody>
+        <tr><td>Charge totale</td><td class="num">${r.total_charge_kg} kg</td></tr>
+        <tr><td>Fluide dominant</td><td class="num">${escapeHtml(r.dominant_fluid_code)}</td></tr>
+        <tr><td>Volume local</td><td class="num">${c.volume_m3} m³</td></tr>
+        <tr><td>Concentration</td><td class="num">${c.concentration_kg_m3} kg/m³</td></tr>
+        <tr><td>Limite (${c.limit_type})</td><td class="num">${c.limit_used_kg_m3??'-'} ${c.method_used==='A'?'kg':'kg/m³'}</td></tr>
+      </tbody></table>
+      ${c.notes.length ? `<div style="margin-top:12px;">${c.notes.map(n=>`<div class="note-line">• ${escapeHtml(n)}</div>`).join('')}</div>` : ''}
+    </div>
+    <div class="card"><h3>Détail par circuit</h3>
+      <div class="table-scroll"><table><thead><tr><th>Circuit</th><th class="num">Charge totale</th><th class="num">Par UI</th></tr></thead>
+      <tbody>${r.circuits.map(c2=>`<tr><td>${escapeHtml(c2.name)}</td><td class="num">${c2.total_charge_kg} kg</td><td class="num">${c2.charge_per_indoor_unit_kg} kg</td></tr>`).join('')}</tbody></table></div>
+    </div>
+    <div class="card"><h3>Recommandations</h3>${r.recommendations.map(rec=>alertBox(rec)).join('')}</div>
+  `;
+};
+
+App.setExpertTab = function(tab){
+  document.getElementById('ec-tab-circuits').classList.toggle('active', tab==='circuits');
+  document.getElementById('ec-tab-multiroom').classList.toggle('active', tab==='multiroom');
+  document.getElementById('ec-panel-circuits').classList.toggle('hidden', tab!=='circuits');
+  document.getElementById('ec-panel-multiroom').classList.toggle('hidden', tab!=='multiroom');
+};
+
+/* ---------------------- Analyse multilocaux ---------------------- */
+App.multiRooms = [];
+App.addMultiRoom = function(prefill){
+  const id = uid('r');
+  this.multiRooms.push(Object.assign({id, room_name:`Local ${this.multiRooms.length+1}`, room_type:'bureau', surface_m2:20, height_m:2.5,
+    fluid_code:'R32', charge_kg:1, system_type:'', mounting_type:'wall', is_lowest_basement_level:false}, prefill||{}));
+  this.renderMultiRooms();
+};
+App.removeMultiRoom = function(id){ this.multiRooms = this.multiRooms.filter(r=>r.id!==id); this.renderMultiRooms(); };
+App.updateMultiRoom = function(id, field, value){ const r = this.multiRooms.find(r=>r.id===id); if (r) r[field]=value; if (field==='fluid_code'||field==='system_type') this.renderMultiRooms(); };
+App.renderMultiRooms = function(){
+  const tbody = document.getElementById('mr-room-list');
+  tbody.innerHTML = this.multiRooms.map(r => {
+    const fluid = getFluid(r.fluid_code);
+    const flammable = fluid && FLAMMABLE_GROUPS.includes(fluid.safety_group);
+    const showMount = flammable && COMFORT_AC_SYSTEM_TYPES.has(r.system_type || 'DRV');
+    return `<tr>
+      <td><input type="text" class="mid-input" value="${escapeHtml(r.room_name)}" oninput="App.updateMultiRoom('${r.id}','room_name',this.value)"></td>
+      <td><select onchange="App.updateMultiRoom('${r.id}','room_type',this.value)">${ROOM_TYPES.map(t=>`<option value="${t}" ${t===r.room_type?'selected':''}>${t}</option>`).join('')}</select></td>
+      <td><input type="number" class="small-input" value="${r.surface_m2}" oninput="App.updateMultiRoom('${r.id}','surface_m2',parseFloat(this.value)||0)"></td>
+      <td><input type="number" class="small-input" value="${r.height_m}" oninput="App.updateMultiRoom('${r.id}','height_m',parseFloat(this.value)||0)"></td>
+      <td><select class="fluid-select" onchange="App.updateMultiRoom('${r.id}','fluid_code',this.value)" data-room="${r.id}"></select></td>
+      <td><input type="number" class="small-input" value="${r.charge_kg}" oninput="App.updateMultiRoom('${r.id}','charge_kg',parseFloat(this.value)||0)"></td>
+      <td><select class="mid-input" onchange="App.updateMultiRoom('${r.id}','system_type',this.value)"><option value="">—</option>${SYSTEM_TYPES.map(t=>`<option value="${t}" ${t===r.system_type?'selected':''}>${t}</option>`).join('')}</select></td>
+      <td>${showMount ? `<select class="mid-input" onchange="App.updateMultiRoom('${r.id}','mounting_type',this.value)">${MOUNTING_TYPES.map(m=>`<option value="${m[0]}" ${m[0]===r.mounting_type?'selected':''}>${m[1]}</option>`).join('')}</select>` : '-'}</td>
+      <td style="text-align:center;"><input type="checkbox" ${r.is_lowest_basement_level?'checked':''} onchange="App.updateMultiRoom('${r.id}','is_lowest_basement_level',this.checked)"></td>
+      <td><button class="btn-icon" ${this.multiRooms.length===1?'disabled':''} onclick="App.removeMultiRoom('${r.id}')">🗑️</button></td>
+    </tr>`;
+  }).join('');
+  document.querySelectorAll('#mr-room-list .fluid-select').forEach(sel => {
+    DB.fluids.forEach(f => { const opt=document.createElement('option'); opt.value=f.code; opt.textContent=f.code; sel.appendChild(opt); });
+    const room = this.multiRooms.find(r=>r.id===sel.dataset.room);
+    if (room) sel.value = room.fluid_code;
+  });
+};
+
+App.runMultiRoom = function(){
+  const errBox = document.getElementById('mr-error'); errBox.innerHTML='';
+  try{
+    if (!this.multiRooms.length) throw new Error('Au moins un local est requis');
+    const analyses = []; const roomDetails = [];
+    for (const r of this.multiRooms){
+      const fluid = getFluid(r.fluid_code);
+      const result = computeConcentration(fluid, r.charge_kg, r.surface_m2, r.height_m, r.system_type||null,
+        (r.mounting_type||null), r.is_lowest_basement_level);
+      const recs = recommend(fluid.safety_group, result.conformity, result.margin_ratio, r.room_type);
+      analyses.push({room_name:r.room_name, result});
+      roomDetails.push({room_name:r.room_name, room_type:r.room_type, fluid_code:r.fluid_code, charge_kg:r.charge_kg, result, recommendations:recs});
+    }
+    const summary = multiRoomAnalysis(analyses);
+    if (DB.currentProjectId){
+      for (const rd of roomDetails){
+        this.saveCalculation(DB.currentProjectId, 'expert', rd.room_name, rd.fluid_code, rd.charge_kg, rd.result, rd.recommendations);
+      }
+    }
+    this.renderMultiRoomResult(summary, roomDetails);
+  }catch(e){
+    errBox.innerHTML = `<div class="alert error">${escapeHtml(e.message)}</div>`;
+  }
+};
+
+App.renderMultiRoomResult = function(summary, roomDetails){
+  const max = Math.max.apply(null, summary.rooms.map(r=>Math.max(r.concentration_kg_m3, r.limit_used_kg_m3||0))) * 1.1 || 1;
+  const chart = summary.rooms.map(r => {
+    const color = CONFORMITY_COLORS[r.conformity]||'#616161';
+    const concPct = Math.min((r.concentration_kg_m3/max)*100,100);
+    const limitPct = Math.min(((r.limit_used_kg_m3||0)/max)*100,100);
+    return `<div class="bar-row"><div class="flex between"><b>${escapeHtml(r.room_name)}</b><span style="color:var(--muted);font-size:12px;">${r.concentration_kg_m3.toFixed(4)} / ${(r.limit_used_kg_m3??0).toFixed(4)} kg/m³</span></div>
+      <div class="bar-track"><div class="bar-fill" style="width:${concPct}%;background:${color};"></div><div class="bar-limit" style="left:${limitPct}%;"></div></div></div>`;
+  }).join('');
+  const heat = summary.rooms.map(r => {
+    const color = CONFORMITY_COLORS[r.conformity]||'#616161';
+    return `<div class="heat-card" style="border-left-color:${color};background:${color}0d;">
+      <div style="font-weight:700;">${escapeHtml(r.room_name)}</div>
+      <div class="flex between" style="margin-top:4px;"><span style="color:${color};font-weight:700;font-size:12px;">${escapeHtml(r.conformity)}</span><span style="color:var(--muted);font-size:12px;">${(r.margin_ratio*100).toFixed(0)}%</span></div>
+    </div>`;
+  }).join('');
+  document.getElementById('mr-result').innerHTML = `
+    <div class="card"><h2>Conformité globale</h2>
+      <div class="flex gap center" style="margin-bottom:12px;">${riskChip(summary.global_conformity)}<span style="color:var(--muted);">Local le plus pénalisant : <b>${escapeHtml(summary.worst_room)}</b></span></div>
+      <div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px;">${heat}</div>
+    </div>
+    <div class="card"><h2>Diagramme de concentration</h2>${chart}</div>
+    <div class="card"><h2>Recommandations par local</h2>
+      ${roomDetails.map(rd => `<h3>${escapeHtml(rd.room_name)}</h3>${rd.recommendations.map(rec=>alertBox(rec)).join('')}`).join('')}
+    </div>`;
+};
+
+/* ---------------------- Import Excel (SheetJS) ---------------------- */
+const COLUMN_ALIASES = {
+  name:['nom','local','piece','designation','salle'], room_type:['type','typedelocal','typelocal'],
+  surface_m2:['surface','surfacem2','surfacem²'], height_m:['hauteur','hauteurm','hauteursousplafond','hsp'],
+  fluid_code:['fluide','fluidefrigorigene','fluid'], charge_kg:['charge','chargekg','chargedefluide'],
+};
+function normalizeHeader(s){ return String(s).normalize('NFKD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]/g,''); }
+
+App.handleExcelImport = function(evt){
+  const file = evt.target.files[0]; if (!file) return;
+  if (!window.XLSX){ this.showImportInfo("La bibliothèque de lecture Excel (SheetJS) n'a pas pu être chargée. Vérifiez votre connexion Internet puis réessayez.", true); evt.target.value=''; return; }
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try{
+      const wb = XLSX.read(e.target.result, {type:'array'});
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:null});
+      if (!rows.length){ this.showImportInfo('Le fichier est vide.', true); return; }
+      const header = rows[0];
+      const colMap = {};
+      header.forEach((cell,idx) => {
+        if (cell==null) return;
+        const norm = normalizeHeader(cell);
+        for (const [field, aliases] of Object.entries(COLUMN_ALIASES)){
+          if (aliases.includes(norm)){ colMap[idx]=field; break; }
+        }
+      });
+      if (!Object.values(colMap).includes('name') || !Object.values(colMap).includes('surface_m2')){
+        this.showImportInfo("Colonnes attendues introuvables (au minimum 'Nom' et 'Surface').", true); return;
+      }
+      const imported = [];
+      for (let i=1;i<rows.length;i++){
+        const row = rows[i]; if (!row) continue;
+        const entry = {};
+        Object.entries(colMap).forEach(([idx,field]) => { entry[field] = row[idx]; });
+        if (entry.name==null || entry.surface_m2==null) continue;
+        const surface = parseFloat(entry.surface_m2); if (isNaN(surface)) continue;
+        imported.push({room_name:String(entry.name).trim(), room_type:(String(entry.room_type||'bureau').trim().toLowerCase())||'bureau',
+          surface_m2:surface, height_m: entry.height_m!=null && !isNaN(parseFloat(entry.height_m)) ? parseFloat(entry.height_m) : 2.5,
+          fluid_code: entry.fluid_code ? String(entry.fluid_code).trim().toUpperCase() : (DB.fluids[0]?.code||'R32'),
+          charge_kg: entry.charge_kg!=null && !isNaN(parseFloat(entry.charge_kg)) ? parseFloat(entry.charge_kg) : 1,
+          system_type:'', mounting_type:'wall', is_lowest_basement_level:false});
+      }
+      if (!imported.length){ this.showImportInfo('Aucune ligne exploitable trouvée dans le fichier.', true); return; }
+      this.multiRooms = imported.map(r => Object.assign({id:uid('r')}, r));
+      this.renderMultiRooms();
+      this.showImportInfo(`${imported.length} local(aux) importé(s) depuis ${file.name}.`, false);
+    }catch(err){
+      this.showImportInfo("Erreur lors de l'import du fichier Excel : " + err.message, true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  evt.target.value = '';
+};
+App.showImportInfo = function(msg, isError){
+  document.getElementById('mr-import-info').innerHTML = `<div class="alert ${isError?'error':'info'}">${escapeHtml(msg)}</div>`;
+};
+
+/* ---------------------- Détection depuis un plan (pdf.js + Tesseract.js) ---------------------- */
+if (window.pdfjsLib){
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+}
+async function extractPdfVectorText(arrayBuffer){
+  const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+  let text = '';
+  for (let i=1;i<=pdf.numPages;i++){
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    text += content.items.map(it => it.str).join(' ') + '\n';
+  }
+  return text;
+}
+async function ocrPdfPages(arrayBuffer, maxPages){
+  const pdf = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+  let text = '';
+  const n = Math.min(pdf.numPages, maxPages||5);
+  for (let i=1;i<=n;i++){
+    const page = await pdf.getPage(i);
+    const viewport = page.getViewport({scale:2.0});
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width; canvas.height = viewport.height;
+    await page.render({canvasContext: canvas.getContext('2d'), viewport}).promise;
+    const { data:{ text: pageText } } = await Tesseract.recognize(canvas, 'fra+eng');
+    text += pageText + '\n';
+  }
+  return text;
+}
+async function ocrImageFile(file){
+  const { data:{ text } } = await Tesseract.recognize(file, 'fra+eng');
+  return text;
+}
+App.handlePlanImport = async function(evt){
+  const file = evt.target.files[0]; if (!file) return;
+  if (!window.pdfjsLib){ this.showImportInfo("Les bibliothèques d'analyse de plan (pdf.js / Tesseract.js) n'ont pas pu être chargées. Vérifiez votre connexion Internet puis réessayez.", true); evt.target.value=''; return; }
+  this.showImportInfo('Analyse du plan en cours…', false);
+  try{
+    const ext = file.name.toLowerCase().split('.').pop();
+    let text = '', engine = '';
+    if (ext === 'pdf'){
+      const buf = await file.arrayBuffer();
+      text = await extractPdfVectorText(buf);
+      engine = 'texte vectoriel PDF (pdf.js)';
+      if (text.trim().length < 20){
+        text = await ocrPdfPages(buf, 5);
+        engine = 'OCR (Tesseract.js) sur pages PDF rendues en image';
+      }
+    } else if (['png','jpg','jpeg','tif','tiff','bmp'].includes(ext)){
+      text = await ocrImageFile(file);
+      engine = 'OCR (Tesseract.js) sur image';
+    } else {
+      throw new Error('Format non supporté. Formats acceptés : PDF, PNG, JPG, TIFF, BMP.');
+    }
+    const rooms = heuristicExtractRooms(text);
+    if (!rooms.length){
+      this.showImportInfo(`Aucun local détecté automatiquement (${engine}). Vérifiez que les surfaces sont annotées sur le plan (ex. « Bureau 1 — 18 m² »).`, true);
+      return;
+    }
+    this.multiRooms = rooms.map(r => ({id:uid('r'), room_name:r.room_name, room_type:r.room_type, surface_m2:r.surface_m2||20,
+      height_m:2.5, fluid_code: DB.fluids[0]?.code||'R32', charge_kg:1, system_type:r.suggested_system_type||'', mounting_type:'wall', is_lowest_basement_level:false}));
+    this.renderMultiRooms();
+    this.showImportInfo(`${rooms.length} local(aux) détecté(s) sur le plan (${engine}).`, false);
+  }catch(err){
+    this.showImportInfo('Erreur lors de l’analyse du plan : ' + err.message, true);
+  }
+  evt.target.value = '';
+};
+
+/* ---------------------- Assistant IA (CCTP) ---------------------- */
+App.analyzeCctp = function(){
+  const text = document.getElementById('ai-cctp-text').value;
+  const rooms = heuristicExtractRooms(text);
+  document.getElementById('ai-engine-chip').innerHTML = '<span class="chip">moteur : heuristique</span>';
+  const box = document.getElementById('ai-rooms-result');
+  if (!rooms.length){ box.innerHTML = '<p style="color:var(--muted);">Aucun local extrait. Lancez une analyse pour peupler cette liste ; vous pourrez ensuite reporter ces locaux dans le mode Calcul rapide ou l’analyse multilocaux.</p>'; return; }
+  box.innerHTML = `<div class="table-scroll"><table><thead><tr><th>Local</th><th>Type</th><th class="num">Surface (m²)</th><th>Système suggéré</th></tr></thead>
+    <tbody>${rooms.map(r=>`<tr><td>${escapeHtml(r.room_name)}</td><td>${escapeHtml(r.room_type)}</td><td class="num">${r.surface_m2??'-'}</td><td><span class="chip">${escapeHtml(r.suggested_system_type)}</span></td></tr>`).join('')}</tbody>
+    </table></div>`;
+};
+
+/* ---------------------- Bibliothèque fluides ---------------------- */
+App.renderFluidLibrary = function(){
+  document.getElementById('fluid-list').innerHTML = DB.fluids.map(f => `
+    <tr>
+      <td><b>${escapeHtml(f.code)}</b></td><td>${escapeHtml(f.name)}</td>
+      <td><span class="chip">${escapeHtml(f.safety_group)}</span></td>
+      <td class="num">${f.lfl_kg_m3??'-'}</td><td class="num">${f.practical_limit_kg_m3??'-'}</td><td class="num">${f.atel_odl_kg_m3??'-'}</td>
+      <td class="num">${f.rcl_kg_m3??'-'}</td><td class="num">${f.qlmv_kg_m3??'-'}</td><td class="num">${f.qlav_kg_m3??'-'}</td>
+      <td class="num">${f.gwp??'-'}</td>
+      <td><button class="btn-icon" onclick="App.openFluidDialog('${f.id}')">✏️</button><button class="btn-icon" onclick="App.deleteFluid('${f.id}')">🗑️</button></td>
+    </tr>`).join('');
+};
+App.deleteFluid = function(id){ DB.fluids = DB.fluids.filter(f=>f.id!==id); saveDB(); this.renderFluidLibrary(); this.renderFluidSelectors(); };
+App.openFluidDialog = function(id){
+  const existing = id ? DB.fluids.find(f=>f.id===id) : null;
+  const vals = existing || {code:'',name:'',safety_group:'A2L',lfl_kg_m3:'',practical_limit_kg_m3:'',atel_odl_kg_m3:'',molar_mass_g_mol:'',rcl_kg_m3:'',qlmv_kg_m3:'',qlav_kg_m3:'',gwp:'',source:''};
+  const formHtml = `
+    <div style="position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:100;display:flex;align-items:center;justify-content:center;" id="fluidDialogOverlay">
+      <div class="card" style="width:min(560px,92vw);max-height:88vh;overflow:auto;">
+        <h2>${existing ? 'Modifier '+escapeHtml(existing.code) : 'Ajouter un fluide'}</h2>
+        <div class="grid cols-2">
+          <div class="field"><label>Code</label><input type="text" id="fd-code" value="${escapeHtml(vals.code)}" ${existing?'disabled':''}></div>
+          <div class="field"><label>Groupe de sécurité</label><select id="fd-group">${['A1','A2L','A2','A3','B1','B2L','B2'].map(g=>`<option value="${g}" ${g===vals.safety_group?'selected':''}>${g}</option>`).join('')}</select></div>
+        </div>
+        <div class="field"><label>Désignation</label><input type="text" id="fd-name" value="${escapeHtml(vals.name)}"></div>
+        <div class="grid cols-2">
+          <div class="field"><label>LFL (kg/m³)</label><input type="number" step="0.001" id="fd-lfl" value="${vals.lfl_kg_m3??''}"></div>
+          <div class="field"><label>Limite pratique (kg/m³)</label><input type="number" step="0.001" id="fd-practical" value="${vals.practical_limit_kg_m3??''}"></div>
+          <div class="field"><label>ATEL/ODL (kg/m³)</label><input type="number" step="0.001" id="fd-atelodl" value="${vals.atel_odl_kg_m3??''}"></div>
+          <div class="field"><label>Masse molaire (g/mol)</label><input type="number" step="0.1" id="fd-molar" value="${vals.molar_mass_g_mol??''}"></div>
+        </div>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr;">
+          <div class="field"><label>RCL (kg/m³)</label><input type="number" step="0.001" id="fd-rcl" value="${vals.rcl_kg_m3??''}"></div>
+          <div class="field"><label>QLMV (kg/m³)</label><input type="number" step="0.001" id="fd-qlmv" value="${vals.qlmv_kg_m3??''}"></div>
+          <div class="field"><label>QLAV (kg/m³)</label><input type="number" step="0.001" id="fd-qlav" value="${vals.qlav_kg_m3??''}"></div>
+        </div>
+        <div class="field"><label>GWP</label><input type="number" id="fd-gwp" value="${vals.gwp??''}"></div>
+        <div class="field"><label>Source</label><input type="text" id="fd-source" value="${escapeHtml(vals.source||'')}"></div>
+        <div class="flex" style="justify-content:flex-end;gap:8px;margin-top:10px;">
+          <button class="btn outline" onclick="document.getElementById('fluidDialogOverlay').remove()">Annuler</button>
+          <button class="btn" onclick="App.saveFluidDialog(${existing?`'${existing.id}'`:'null'})">Enregistrer</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', formHtml);
+};
+App.saveFluidDialog = function(id){
+  const num = (v) => v===''||v==null ? null : parseFloat(v);
+  const data = {
+    code: document.getElementById('fd-code').value.trim().toUpperCase(), name: document.getElementById('fd-name').value.trim(),
+    safety_group: document.getElementById('fd-group').value, lfl_kg_m3: num(document.getElementById('fd-lfl').value),
+    practical_limit_kg_m3: num(document.getElementById('fd-practical').value), atel_odl_kg_m3: num(document.getElementById('fd-atelodl').value),
+    molar_mass_g_mol: num(document.getElementById('fd-molar').value), rcl_kg_m3: num(document.getElementById('fd-rcl').value),
+    qlmv_kg_m3: num(document.getElementById('fd-qlmv').value), qlav_kg_m3: num(document.getElementById('fd-qlav').value),
+    gwp: num(document.getElementById('fd-gwp').value), source: document.getElementById('fd-source').value.trim(),
+  };
+  if (!data.code){ alert('Le code fluide est requis.'); return; }
+  if (id){
+    const f = DB.fluids.find(f=>f.id===id); Object.assign(f, data);
+  } else {
+    if (DB.fluids.some(f=>f.code===data.code)){ alert('Ce code fluide existe déjà.'); return; }
+    DB.fluids.push(Object.assign({id:uid('fl'), editable:true}, data));
+  }
+  saveDB();
+  document.getElementById('fluidDialogOverlay').remove();
+  this.renderFluidLibrary(); this.renderFluidSelectors();
+};
+
+/* ---------------------- Bibliothèque équipements ---------------------- */
+App.renderEquipmentFilters = function(){};
+App.renderEquipmentList = function(){
+  const mfr = document.getElementById('eq-filter-manufacturer').value;
+  const sys = document.getElementById('eq-filter-system').value;
+  let list = DB.equipment.slice();
+  if (mfr) list = list.filter(e=>e.manufacturer===mfr);
+  if (sys) list = list.filter(e=>e.system_type===sys);
+  document.getElementById('eq-count').textContent = `Équipements (${list.length})`;
+  document.getElementById('eq-list').innerHTML = list.map(e => `
+    <tr><td>${escapeHtml(e.manufacturer)}</td><td>${escapeHtml(e.reference)}</td><td><span class="chip">${escapeHtml(e.system_type)}</span></td>
+    <td>${escapeHtml(e.fluid_code)}</td><td class="num">${e.cooling_power_kw} kW</td><td class="num">${e.heating_power_kw??'-'} kW</td>
+    <td class="num">${e.factory_charge_kg} kg</td><td class="num">${e.additional_charge_kg_per_m}</td>
+    <td class="num">${e.max_pipe_length_m??'-'} m</td><td class="num">${e.max_equivalent_length_m??'-'} m</td></tr>`).join('');
+};
+
+/* ---------------------- Rapports ---------------------- */
+App.renderReportsPage = function(){
+  const sel = document.getElementById('rp-project');
+  sel.innerHTML = DB.projects.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('');
+  if (DB.currentProjectId) sel.value = DB.currentProjectId;
+  else if (DB.projects.length) DB.currentProjectId = DB.projects[0].id, sel.value = DB.currentProjectId;
+
+  const content = document.getElementById('rp-content');
+  if (!DB.projects.length){ content.innerHTML = '<div class="alert info">Créez un projet pour consulter son historique et générer un rapport.</div>'; return; }
+  const pid = sel.value;
+  const calcs = (DB.calculations[pid]||[]).slice().sort((a,b)=>b.created_at-a.created_at);
+  content.innerHTML = `
+    <div class="card"><h2>Historique des calculs</h2>
+      <div class="table-scroll"><table><thead><tr><th>Date</th><th>Mode</th><th>Fluide</th><th class="num">Charge (kg)</th><th class="num">Concentration (kg/m³)</th><th>Conformité</th></tr></thead>
+      <tbody>${calcs.length ? calcs.map(c=>`<tr><td>${new Date(c.created_at).toLocaleString('fr-FR')}</td><td>${c.mode}</td><td>${escapeHtml(c.fluid_code)}</td><td class="num">${c.charge_kg}</td><td class="num">${c.concentration_kg_m3}</td><td>${riskChip(c.conformity)}</td></tr>`).join('') : '<tr><td colspan="6" style="color:var(--muted);">Aucun calcul enregistré pour ce projet.</td></tr>'}</tbody>
+      </table></div>
+    </div>
+    <div class="card"><h2>Génération du rapport</h2>
+      <p style="color:var(--muted);">Le rapport intègre les données du projet, le résumé des hypothèses, les résultats détaillés, les recommandations et les références normatives NF EN 378-1.</p>
+      <div class="flex gap">
+        <button class="btn" ${!calcs.length?'disabled':''} onclick="App.exportPdf('${pid}')">📄 Export PDF</button>
+        <button class="btn outline" ${!calcs.length?'disabled':''} onclick="App.exportXlsx('${pid}')">📊 Export XLSX</button>
+      </div>
+    </div>`;
+};
+
+App.exportPdf = function(projectId){
+  if (!window.jspdf){ alert("La bibliothèque de génération PDF (jsPDF) n'a pas pu être chargée. Vérifiez votre connexion Internet (le fichier charge cette bibliothèque depuis cdn.jsdelivr.net au premier usage) puis réessayez."); return; }
+  const project = DB.projects.find(p=>p.id===projectId);
+  const calcs = (DB.calculations[projectId]||[]).slice().sort((a,b)=>b.created_at-a.created_at);
+  if (!project || !calcs.length) return;
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF();
+  const company = DB.company || {};
+
+  if (company.logo){
+    try{
+      const fmtMatch = /^data:image\/(png|jpe?g)/i.exec(company.logo);
+      const fmt = fmtMatch ? (fmtMatch[1].toLowerCase()==='png' ? 'PNG' : 'JPEG') : 'PNG';
+      doc.addImage(company.logo, fmt, 20, 15, 30, 30);
+    }catch(e){ console.warn('Logo non intégré au PDF', e); }
+  }
+
+  doc.setFontSize(22); doc.text('Rapport de vérification NF EN 378-1', 20, 40);
+  doc.setFontSize(13); doc.text('Concentration de fluide frigorigène', 20, 50);
+  doc.setFontSize(11);
+  let y = 70;
+  doc.text(`Projet : ${project.name}`, 20, y); y+=8;
+  if (project.client) { doc.text(`Client : ${project.client}`, 20, y); y+=8; }
+  if (project.address) { doc.text(`Adresse : ${project.address}`, 20, y); y+=8; }
+  if (project.author) { doc.text(`Rédacteur : ${project.author}`, 20, y); y+=8; }
+  if (company.company_name){ y+=6; doc.text(`Bureau d'études : ${company.company_name}`, 20, y); y+=8;
+    if (company.address) { doc.text(company.address, 20, y); y+=8; }
+    if (company.contact_email) { doc.text(company.contact_email, 20, y); y+=8; } }
+
+  doc.addPage();
+  doc.setFontSize(16); doc.text('1. Résumé des hypothèses', 20, 30);
+  doc.setFontSize(10);
+  const hyp = "Calculs réalisés selon la méthodologie NF EN 378-1+A1:2020 (Annexe C) : Méthode C.2 (Formules C.1/C.2) pour la climatisation/PAC de confort avec fluide inflammable, ou Méthode C.3 (RCL/QLMV/QLAV, Tableau C.3) pour les autres systèmes. Les valeurs de seuils utilisées proviennent de la bibliothèque fluides de l'application et doivent être vérifiées par un professionnel qualifié.";
+  doc.text(doc.splitTextToSize(hyp, 170), 20, 40);
+
+  doc.addPage();
+  doc.setFontSize(16); doc.text('2. Résultats de calcul NF EN 378-1', 20, 20);
+  doc.autoTable({
+    startY: 28,
+    head: [['Local','Fluide','Charge (kg)','Volume (m3)','Concentration (kg/m3)','Limite','Conformité']],
+    body: calcs.map(c => [c.room_name, c.fluid_code, c.charge_kg.toFixed(2), c.volume_m3.toFixed(2), c.concentration_kg_m3.toFixed(4), `${c.limit_used_kg_m3??'-'} (${c.limit_type})`, c.conformity]),
+    styles:{fontSize:8}, headStyles:{fillColor:[21,101,192]},
+    didParseCell: (data) => {
+      if (data.section==='body' && data.column.index===6){
+        const col = data.cell.raw==='Conforme' ? [46,125,50] : data.cell.raw==='Conforme sous conditions' ? [237,108,2] : [198,40,40];
+        data.cell.styles.textColor = col; data.cell.styles.fontStyle='bold';
+      }
+    },
+  });
+
+  doc.addPage();
+  doc.setFontSize(16); doc.text('3. Recommandations', 20, 20);
+  doc.setFontSize(10);
+  let ry = 30;
+  calcs.forEach(c => {
+    if (!c.recommendations || !c.recommendations.length) return;
+    if (ry > 260){ doc.addPage(); ry = 20; }
+    doc.setFont(undefined,'bold'); doc.text(c.room_name, 20, ry); doc.setFont(undefined,'normal'); ry+=6;
+    c.recommendations.forEach(rec => {
+      const lines = doc.splitTextToSize(`• ${rec.measure} — ${rec.reason}`, 170);
+      if (ry + lines.length*5 > 280){ doc.addPage(); ry = 20; }
+      doc.text(lines, 20, ry); ry += lines.length*5 + 2;
+    });
+    ry += 4;
+  });
+
+  doc.addPage();
+  doc.setFontSize(16); doc.text('4. Références normatives', 20, 20);
+  doc.setFontSize(10);
+  doc.text(doc.splitTextToSize("NF EN 378-1+A1:2020 : Systèmes frigorifiques et pompes à chaleur — Exigences de sécurité et d'environnement — Partie 1. Annexe C (normative) : exigences relatives aux limites de charge de fluide frigorigène. Classification de sécurité des fluides : Annexe E (normative) / ISO 817.", 170), 20, 30);
+  doc.setFontSize(9); doc.setTextColor(120);
+  doc.text(doc.splitTextToSize("Ce rapport est généré automatiquement à titre d'aide à la vérification. Il ne se substitue pas à l'analyse d'un professionnel qualifié et doit être validé avant intégration à un dossier réglementaire.", 170), 20, 70);
+
+  doc.save(`rapport_${project.name.replace(/[^a-z0-9]/gi,'_')}.pdf`);
+};
+
+App.exportXlsx = function(projectId){
+  if (!window.XLSX){ alert("La bibliothèque d'export Excel (SheetJS) n'a pas pu être chargée. Vérifiez votre connexion Internet puis réessayez."); return; }
+  const project = DB.projects.find(p=>p.id===projectId);
+  const calcs = (DB.calculations[projectId]||[]).slice().sort((a,b)=>b.created_at-a.created_at);
+  if (!project || !calcs.length) return;
+  const rows = [
+    ['Rapport de vérification NF EN 378-1'], [`Projet : ${project.name}`], [`Type de bâtiment : ${project.building_type||'-'}`], [],
+    ['Local','Fluide','Charge (kg)','Volume (m3)','Concentration (kg/m3)','Limite (kg/m3)','Type de limite','Conformité'],
+  ];
+  calcs.forEach(c => rows.push([c.room_name, c.fluid_code, c.charge_kg, c.volume_m3, c.concentration_kg_m3, c.limit_used_kg_m3, c.limit_type, c.conformity]));
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols'] = [{wch:24},{wch:10},{wch:12},{wch:12},{wch:20},{wch:14},{wch:14},{wch:22}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Résultats NF EN 378-1');
+  XLSX.writeFile(wb, `rapport_${project.name.replace(/[^a-z0-9]/gi,'_')}.xlsx`);
+};
+
+/* ---------------------- Paramètres ---------------------- */
+App.renderSettingsPage = function(){
+  const c = DB.company || {};
+  document.getElementById('set-company-name').value = c.company_name||'';
+  document.getElementById('set-address').value = c.address||'';
+  document.getElementById('set-email').value = c.contact_email||'';
+  document.getElementById('set-phone').value = c.contact_phone||'';
+  const preview = document.getElementById('set-logo-preview');
+  preview.innerHTML = c.logo ? `<img src="${c.logo}" style="width:100%;height:100%;object-fit:contain;">` : 'Logo';
+};
+App.saveSettings = function(){
+  DB.company = Object.assign(DB.company||{}, {
+    company_name: document.getElementById('set-company-name').value.trim(),
+    address: document.getElementById('set-address').value.trim(),
+    contact_email: document.getElementById('set-email').value.trim(),
+    contact_phone: document.getElementById('set-phone').value.trim(),
+  });
+  saveDB();
+  document.getElementById('set-message').innerHTML = '<div class="alert success">Paramètres enregistrés.</div>';
+  setTimeout(()=>{ document.getElementById('set-message').innerHTML=''; }, 3000);
+};
+App.handleLogoUpload = function(evt){
+  const file = evt.target.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => { DB.company = Object.assign(DB.company||{}, {logo: e.target.result}); saveDB(); App.renderSettingsPage(); };
+  reader.readAsDataURL(file);
+};
+
+/* ---------------------- Démarrage ---------------------- */
+document.addEventListener('DOMContentLoaded', () => App.init());
+</script>
+</body>
+</html>

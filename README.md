@@ -12,6 +12,25 @@ modes de travail :
 > d'implantation de plans CVC (2D/3D, calibration, export DXF) indépendant de
 > cette application. Voir `ARCHITECTURE.md` pour ce module historique.
 
+## Version autonome au format HTML
+
+**`en378_calculateur.html`** : version 100% autonome de cette application
+(un seul fichier, sans backend ni installation) — mêmes fonctionnalités que
+la version FastAPI/React ci-dessous : moteur de calcul NF EN 378-1 (Méthodes
+C.2 et C.3), bibliothèques fluides/équipements éditables, mode Rapide, mode
+Expert (circuits + analyse multilocaux), import Excel, détection de locaux
+depuis un plan, Assistant IA (CCTP, moteur heuristique), rapports PDF/XLSX.
+
+À utiliser telle quelle : double-cliquer sur le fichier pour l'ouvrir dans un
+navigateur (Chrome, Edge, Firefox), ou le déposer sur un intranet/partage
+réseau. Les données du projet sont stockées localement dans le navigateur
+(`localStorage`) — aucun envoi à un serveur. Une connexion Internet est
+nécessaire uniquement pour charger les bibliothèques de génération de
+rapport/import (jsPDF, SheetJS, pdf.js, Tesseract.js), servies depuis
+`cdn.jsdelivr.net` au premier usage de ces fonctions ; le reste de l'outil
+(calcul, bibliothèques, assistant CCTP) fonctionne hors ligne. Voir le pied
+de page de l'outil pour l'avertissement réglementaire complet.
+
 ## ⚠️ Avertissement réglementaire
 
 Le moteur de calcul (`backend/app/core/en378.py`) implémente les formules et
