@@ -1,12 +1,23 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from sqlalchemy.orm import Session
 
 from .. import models, schemas
+from ..core.room_import import parse_rooms_excel
 from ..database import get_db
 
 router = APIRouter(prefix="/api/rooms", tags=["rooms"])
+
+
+@router.post("/import-excel", response_model=schemas.RoomImportResponse)
+async def import_rooms_excel(file: UploadFile):
+    content = await file.read()
+    try:
+        rows, warnings = parse_rooms_excel(content)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc))
+    return schemas.RoomImportResponse(source=file.filename or "fichier.xlsx", rooms=rows, warnings=warnings)
 
 
 @router.get("", response_model=list[schemas.RoomOut])

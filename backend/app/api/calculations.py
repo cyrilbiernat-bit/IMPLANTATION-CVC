@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import dataclasses
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -18,10 +19,13 @@ def _fluid_to_dataclass(fluid: models.Fluid) -> en378.FluidData:
         name=fluid.name,
         safety_group=fluid.safety_group,
         lfl_kg_m3=fluid.lfl_kg_m3,
-        rcl_kg_m3=fluid.rcl_kg_m3,
-        atel_kg_m3=fluid.atel_kg_m3,
-        odl_kg_m3=fluid.odl_kg_m3,
+        practical_limit_kg_m3=fluid.practical_limit_kg_m3,
+        atel_odl_kg_m3=fluid.atel_odl_kg_m3,
+        molar_mass_g_mol=fluid.molar_mass_g_mol,
         gwp=fluid.gwp,
+        rcl_kg_m3=fluid.rcl_kg_m3,
+        qlmv_kg_m3=fluid.qlmv_kg_m3,
+        qlav_kg_m3=fluid.qlav_kg_m3,
     )
 
 
@@ -32,6 +36,10 @@ def _get_fluid_or_404(db: Session, code: str) -> models.Fluid:
     return fluid
 
 
+def _serialize_analysis(result: en378.ConcentrationAnalysis) -> dict:
+    return dataclasses.asdict(result)
+
+
 def _persist_result(
     db: Session,
     project_id: int,
@@ -39,7 +47,7 @@ def _persist_result(
     mode: str,
     fluid_code: str,
     charge_kg: float,
-    result: en378.ConcentrationResult,
+    result: en378.ConcentrationAnalysis,
     recommendations: list[dict],
 ) -> models.CalculationResult:
     row = models.CalculationResult(
@@ -50,7 +58,7 @@ def _persist_result(
         charge_kg=charge_kg,
         volume_m3=result.volume_m3,
         concentration_kg_m3=result.concentration_kg_m3,
-        limit_used_kg_m3=result.limit_used_kg_m3,
+        limit_used_kg_m3=result.limit_used_kg_m3 or 0.0,
         limit_type=result.limit_type,
         conformity=result.conformity,
         min_volume_required_m3=result.min_volume_required_m3,
@@ -84,7 +92,9 @@ def quick_calc(payload: schemas.QuickCalcRequest, db: Session = Depends(get_db))
         charge_estimate["total_charge_kg"],
         payload.surface_m2,
         payload.height_m,
-        payload.access_category,
+        system_type=suggested_system,
+        mounting_type=payload.mounting_type,
+        is_lowest_basement_level=payload.is_lowest_basement_level,
     )
     recommendations = decision_engine.recommend(
         fluid.safety_group, result.conformity, result.margin_ratio, payload.room_type
@@ -127,7 +137,7 @@ def quick_calc(payload: schemas.QuickCalcRequest, db: Session = Depends(get_db))
         "loads": loads,
         "suggested_system_type": suggested_system,
         "charge_estimate": charge_estimate,
-        "concentration": result.__dict__,
+        "concentration": _serialize_analysis(result),
         "recommendations": recommendations,
         "equipment_suggestions": [
             schemas.EquipmentOut.model_validate(e).model_dump() for e in equipment_matches
@@ -167,7 +177,13 @@ def expert_calc(payload: schemas.ExpertCalcRequest, db: Session = Depends(get_db
     fluid_data = _fluid_to_dataclass(fluid)
 
     result = en378.compute_concentration(
-        fluid_data, round(total_charge, 3), payload.surface_m2, payload.height_m, payload.access_category
+        fluid_data,
+        round(total_charge, 3),
+        payload.surface_m2,
+        payload.height_m,
+        system_type=payload.system_type,
+        mounting_type=payload.mounting_type,
+        is_lowest_basement_level=payload.is_lowest_basement_level,
     )
     recommendations = decision_engine.recommend(
         fluid.safety_group, result.conformity, result.margin_ratio, payload.room_type
@@ -190,7 +206,7 @@ def expert_calc(payload: schemas.ExpertCalcRequest, db: Session = Depends(get_db
         "circuits": circuit_totals,
         "total_charge_kg": round(total_charge, 3),
         "dominant_fluid_code": dominant_fluid_code,
-        "concentration": result.__dict__,
+        "concentration": _serialize_analysis(result),
         "recommendations": recommendations,
         "calculation_id": saved.id if saved else None,
     }
@@ -207,7 +223,13 @@ def multi_room(payload: schemas.MultiRoomRequest, db: Session = Depends(get_db))
         fluid = _get_fluid_or_404(db, r.fluid_code)
         fluid_data = _fluid_to_dataclass(fluid)
         result = en378.compute_concentration(
-            fluid_data, r.charge_kg, r.surface_m2, r.height_m, r.access_category
+            fluid_data,
+            r.charge_kg,
+            r.surface_m2,
+            r.height_m,
+            system_type=r.system_type,
+            mounting_type=r.mounting_type,
+            is_lowest_basement_level=r.is_lowest_basement_level,
         )
         recommendations = decision_engine.recommend(
             fluid.safety_group, result.conformity, result.margin_ratio, r.room_type
@@ -217,7 +239,7 @@ def multi_room(payload: schemas.MultiRoomRequest, db: Session = Depends(get_db))
             {
                 "room_name": r.room_name,
                 "room_type": r.room_type,
-                "result": result.__dict__,
+                "result": _serialize_analysis(result),
                 "recommendations": recommendations,
             }
         )
@@ -230,9 +252,20 @@ def multi_room(payload: schemas.MultiRoomRequest, db: Session = Depends(get_db))
 def inverse_calc(payload: schemas.InverseCalcRequest, db: Session = Depends(get_db)):
     fluid = _get_fluid_or_404(db, payload.fluid_code)
     fluid_data = _fluid_to_dataclass(fluid)
-    result = en378.inverse_min_volume(fluid_data, payload.charge_kg, payload.access_category)
-    result["min_surface_required_m2"] = round(result["min_volume_m3"] / payload.height_m, 3)
-    return result
+    result = en378.compute_general_method(
+        fluid_data,
+        payload.charge_kg,
+        surface_m2=1.0,
+        height_m=payload.height_m,
+        is_lowest_basement_level=payload.is_lowest_basement_level,
+    )
+    return {
+        "min_volume_m3": result.min_volume_required_m3,
+        "min_surface_required_m2": result.min_surface_required_m2,
+        "rcl_kg_m3": result.rcl_kg_m3,
+        "qlmv_kg_m3": result.qlmv_kg_m3,
+        "qlav_kg_m3": result.qlav_kg_m3,
+    }
 
 
 @router.get("/history", response_model=list[schemas.CalculationResultOut])

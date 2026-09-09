@@ -5,6 +5,8 @@ import datetime as dt
 
 from pydantic import BaseModel, ConfigDict
 
+DEFAULT_ACCESS_CATEGORY = "Accès général (a)"
+
 
 class ProjectBase(BaseModel):
     name: str
@@ -31,7 +33,7 @@ class RoomBase(BaseModel):
     room_type: str
     surface_m2: float
     height_m: float = 2.5
-    access_category: str = "Accès général (public)"
+    access_category: str = DEFAULT_ACCESS_CATEGORY
     ventilation_ach: float | None = None
     system_type: str | None = None
     fluid_code: str | None = None
@@ -39,6 +41,8 @@ class RoomBase(BaseModel):
     cooling_power_kw: float | None = None
     heating_power_kw: float | None = None
     indoor_units: int | None = None
+    mounting_type: str | None = None
+    is_lowest_basement_level: bool = False
 
 
 class RoomCreate(RoomBase):
@@ -56,9 +60,11 @@ class FluidBase(BaseModel):
     name: str
     safety_group: str
     lfl_kg_m3: float | None = None
+    practical_limit_kg_m3: float | None = None
+    atel_odl_kg_m3: float | None = None
     rcl_kg_m3: float | None = None
-    atel_kg_m3: float | None = None
-    odl_kg_m3: float | None = None
+    qlmv_kg_m3: float | None = None
+    qlav_kg_m3: float | None = None
     gwp: float | None = None
     molar_mass_g_mol: float | None = None
     source: str | None = None
@@ -118,8 +124,10 @@ class QuickCalcRequest(BaseModel):
     cooling_power_kw: float | None = None
     heating_power_kw: float | None = None
     indoor_units: int = 1
-    access_category: str = "Accès général (public)"
+    access_category: str = DEFAULT_ACCESS_CATEGORY
     climate_zone: str = "H2"
+    mounting_type: str | None = None
+    is_lowest_basement_level: bool = False
 
 
 class ExpertCalcCircuit(BaseModel):
@@ -140,7 +148,10 @@ class ExpertCalcRequest(BaseModel):
     room_type: str
     surface_m2: float
     height_m: float
-    access_category: str = "Accès général (public)"
+    access_category: str = DEFAULT_ACCESS_CATEGORY
+    system_type: str | None = None
+    mounting_type: str | None = None
+    is_lowest_basement_level: bool = False
     circuits: list[ExpertCalcCircuit]
 
 
@@ -151,7 +162,10 @@ class MultiRoomRoomInput(BaseModel):
     height_m: float
     fluid_code: str
     charge_kg: float
-    access_category: str = "Accès général (public)"
+    access_category: str = DEFAULT_ACCESS_CATEGORY
+    system_type: str | None = None
+    mounting_type: str | None = None
+    is_lowest_basement_level: bool = False
 
 
 class MultiRoomRequest(BaseModel):
@@ -163,7 +177,8 @@ class InverseCalcRequest(BaseModel):
     fluid_code: str
     charge_kg: float
     height_m: float = 2.5
-    access_category: str = "Accès général (public)"
+    access_category: str = DEFAULT_ACCESS_CATEGORY
+    is_lowest_basement_level: bool = False
 
 
 class CalculationResultOut(BaseModel):
@@ -207,3 +222,18 @@ class CctpRoomExtracted(BaseModel):
     room_type: str
     surface_m2: float | None = None
     suggested_system_type: str | None = None
+
+
+class ImportedRoomRow(BaseModel):
+    room_name: str
+    room_type: str = "bureau"
+    surface_m2: float | None = None
+    height_m: float | None = None
+    fluid_code: str | None = None
+    charge_kg: float | None = None
+
+
+class RoomImportResponse(BaseModel):
+    source: str
+    rooms: list[ImportedRoomRow]
+    warnings: list[str] = []

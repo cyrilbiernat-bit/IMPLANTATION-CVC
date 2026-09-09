@@ -14,14 +14,22 @@ modes de travail :
 
 ## ⚠️ Avertissement réglementaire
 
-Les valeurs de seuils (LFL, RCL, ATEL, ODL) et le catalogue équipements
-fournis par défaut sont des **données indicatives** (ASHRAE 34 / ISO 817 pour
-les fluides, jeux d'exemple pour les équipements constructeurs). Elles
-doivent être vérifiées par un professionnel qualifié par rapport à l'édition
-en vigueur de la norme NF EN 378-1 et aux fiches de données de sécurité (FDS)
-des fabricants avant toute utilisation à des fins de conformité
-réglementaire contractuelle. Les bibliothèques fluides et équipements sont
-entièrement éditables dans l'application.
+Le moteur de calcul (`backend/app/core/en378.py`) implémente les formules et
+tableaux normatifs de l'**Annexe C (normative)** de la **NF EN 378-1+A1
+(octobre 2020)** — Formules (C.1)/(C.2) pour la climatisation/PAC de confort
+et Tableau C.3 (RCL/QLMV/QLAV) pour la méthode alternative générale — extraits
+directement du texte de la norme et validés numériquement par recalcul des
+exemples chiffrés de son Annexe H (voir `backend/tests/test_en378.py`). Les
+valeurs de fluides non tabulées au Tableau C.3 sont calculées par
+l'application à partir de l'Annexe E selon la méthode décrite en C.3.2.1 (une
+approximation, documentée comme telle dans la bibliothèque fluides). Le
+catalogue équipements constructeurs reste un jeu de données d'exemple. Une
+vérification par un professionnel qualifié par rapport à l'édition en vigueur
+de la norme et aux fiches de données de sécurité (FDS) des fabricants reste
+requise avant toute utilisation à des fins de conformité réglementaire
+contractuelle. Les bibliothèques fluides et équipements sont entièrement
+éditables dans l'application. Le moteur ne couvre pas la méthode générale des
+Tableaux C.1/C.2 (classes d'emplacement I à IV) ni les patinoires (Annexe F).
 
 ## Architecture
 
@@ -53,6 +61,13 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+La détection de locaux depuis un plan (voir plus bas) nécessite les outils
+système `poppler-utils` (pdftotext/pdftoppm) et `tesseract-ocr` (+ paquet de
+langue `tesseract-ocr-fra`) — déjà installés dans l'image Docker fournie ;
+en environnement local sans Docker : `apt install poppler-utils tesseract-ocr
+tesseract-ocr-fra` (Debian/Ubuntu). Sans ces outils, le reste de l'application
+fonctionne normalement (seule cette fonctionnalité est indisponible).
+
 Au démarrage, la base (SQLite par défaut : `backend/cvc_en378.db`) est créée
 et peuplée automatiquement avec les fluides et équipements par défaut.
 Pour utiliser PostgreSQL, définir `DATABASE_URL` (ex. via `docker-compose`).
@@ -80,7 +95,7 @@ L'application est servie sur `http://localhost:5173` et proxifie les appels
 docker compose up --build
 ```
 
-## Assistant IA (analyse de CCTP)
+## Assistant IA (analyse de CCTP) et détection depuis un plan
 
 La page « Assistant IA » extrait automatiquement les locaux mentionnés dans
 un CCTP (nom, type, surface) et propose un type de système CVC. Sans clé API
@@ -89,23 +104,42 @@ est utilisé. En définissant la variable d'environnement `ANTHROPIC_API_KEY`
 côté backend, l'extraction et la proposition sont réalisées par un modèle
 Claude pour une analyse plus fine du texte.
 
+Le mode Expert (onglet « Analyse multilocaux ») permet en plus :
+
+- **l'import d'une liste de locaux depuis un fichier Excel** (colonnes Nom /
+  Type / Surface / Hauteur / Fluide / Charge, en-têtes libres) ;
+- **la détection automatique de locaux depuis un plan** (PDF ou image) :
+  lecture des étiquettes de surface annotées sur le plan (ex. « Bureau 1 —
+  18 m² »), via extraction du texte vectoriel pour les PDF issus de CAO/BIM,
+  ou par OCR (Tesseract, français) pour les plans scannés/images. Cette
+  fonctionnalité repose sur la lecture des annotations textuelles du plan et
+  ne réalise pas de reconnaissance géométrique des murs/polygones : les
+  résultats doivent être vérifiés avant utilisation (voir
+  `backend/app/core/plan_detection.py`).
+
 ## Méthodologie de calcul NF EN 378-1 (résumé)
 
-1. **Volume du local** : `V = Surface × Hauteur`
-2. **Concentration théorique** : `Cm = Masse relâchée / V`
-3. **Limite applicable** :
-   - Fluides inflammables (A2L/A2/A3) : limite pratique = `0.25 × LFL`
-     (locaux à occupation générale), comparée également au RCL si disponible.
-   - Fluides non inflammables (A1/B1) : `min(ATEL, ODL, RCL)`.
-   - La catégorie d'accès du local (général / supervisé / autorisé) module
-     la limite retenue.
-4. **Verdict** : Conforme / Conforme sous conditions / Non conforme, avec
-   calcul inverse du volume et de la surface minimale requis.
-5. **Analyse multilocaux** : détermination du local le plus pénalisant et de
+1. **Volume du local** : `V = Surface × Hauteur` (surface plafonnée à 250 m²
+   pour la vérification, conformément à C.3.2.1).
+2. **Deux méthodes normatives implémentées** (Annexe C) :
+   - **Méthode A — C.2** (climatisation / PAC de confort, fluide inflammable
+     2L/2/3) : `mmax = 2,5 × LFL^(5/4) × h0 × √A` (Formule C.1) et
+     `Amin = m² / (2,5 × LFL^(5/4) × h0)²` (Formule C.2), où `h0` dépend de
+     l'emplacement d'installation (plancher/mur/fenêtre/plafond).
+   - **Méthode B — C.3** (autre solution, fluides A1/A2L, ≤ 150 kg) :
+     comparaison de la concentration à la RCL, la QLMV et la QLAV (Tableau
+     C.3 pour R-22/R-134a/R-407C/R-410A/R-744/R-32/R-1234yf/R-1234ze, sinon
+     calculées selon C.3.2.1 et le Tableau C.4). Le local situé à l'étage le
+     plus bas en sous-sol utilise la RCL comme seuil (C.3.2.3).
+3. **Verdict** : Conforme / Conforme sous conditions (1 ou 2 mesures
+   compensatoires) / Non conforme, avec calcul inverse du volume et de la
+   surface minimale requis.
+4. **Analyse multilocaux** : détermination du local le plus pénalisant et de
    la conformité globale du projet.
-6. **Arbre de décision** : recommandation de mesures compensatoires
+5. **Arbre de décision** : recommandation de mesures compensatoires
    (détection de fuite, électrovanne de sécurité, ventilation mécanique,
    cloisonnement, réduction de charge) selon le résultat.
 
-Voir `backend/app/core/en378.py` pour l'implémentation complète et ses
-commentaires méthodologiques.
+Voir `backend/app/core/en378.py` pour l'implémentation complète (commentée
+avec les références d'articles de la norme) et `backend/tests/test_en378.py`
+pour la validation numérique contre les exemples chiffrés de l'Annexe H.

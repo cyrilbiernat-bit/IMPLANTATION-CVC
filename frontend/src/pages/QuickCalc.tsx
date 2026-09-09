@@ -2,10 +2,9 @@ import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
+  Checkbox,
   Chip,
-  Divider,
+  FormControlLabel,
   Grid,
   MenuItem,
   Paper,
@@ -15,25 +14,22 @@ import {
   TableCell,
   TableHead,
   TableRow,
-  TextField,
   Typography,
 } from "@mui/material";
-import { useEffect, useState } from "react";
+import TextField from "@mui/material/TextField";
+import { useEffect, useMemo, useState } from "react";
 import { api, extractErrorMessage } from "../api/client";
 import ComplianceGauge from "../components/ComplianceGauge";
 import RiskIndicator from "../components/RiskIndicator";
+import { ACCESS_CATEGORIES, COMFORT_AC_SYSTEM_TYPES, MOUNTING_TYPES } from "../constants";
 import { useProject } from "../context/ProjectContext";
 import { Fluid, QuickCalcResponse } from "../types";
 
 const BUILDING_TYPES = ["tertiaire", "residentiel", "industriel", "commercial", "erp", "hotel", "sante", "logistique"];
 const ROOM_TYPES = ["bureau", "salle_reunion", "chambre", "hotel", "erp", "laboratoire", "local_technique", "commercial", "industriel", "logistique"];
 const SYSTEM_TYPES = ["DRV", "Multi-split", "Split", "Groupe eau glacee", "PAC", "Centrale frigorifique", "Meuble frigorifique"];
-const ACCESS_CATEGORIES = [
-  "Accès général (public)",
-  "Accès supervisé",
-  "Accès autorisé uniquement (personnel qualifié)",
-];
 const CLIMATE_ZONES = ["H1", "H2", "H3"];
+const FLAMMABLE_GROUPS = ["A2L", "A2", "A3"];
 
 export default function QuickCalc() {
   const { currentProject, setCurrentProject } = useProject();
@@ -51,6 +47,8 @@ export default function QuickCalc() {
     indoor_units: 1,
     access_category: ACCESS_CATEGORIES[0],
     climate_zone: "H2",
+    mounting_type: "wall",
+    is_lowest_basement_level: false,
   });
   const [result, setResult] = useState<QuickCalcResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +57,14 @@ export default function QuickCalc() {
   useEffect(() => {
     api.get<Fluid[]>("/fluids").then((r) => setFluids(r.data));
   }, []);
+
+  const selectedFluid = useMemo(
+    () => fluids.find((f) => f.code === form.fluid_code),
+    [fluids, form.fluid_code]
+  );
+  const isFlammable = selectedFluid ? FLAMMABLE_GROUPS.includes(selectedFluid.safety_group) : false;
+  const effectiveSystemType = form.system_type || "DRV";
+  const showMountingType = isFlammable && COMFORT_AC_SYSTEM_TYPES.includes(effectiveSystemType);
 
   const submit = async () => {
     setError(null);
@@ -222,6 +228,31 @@ export default function QuickCalc() {
               ))}
             </TextField>
 
+            {showMountingType && (
+              <TextField
+                select
+                label="Emplacement d'installation (fluide inflammable — Formule C.1)"
+                value={form.mounting_type}
+                onChange={(e) => setForm({ ...form, mounting_type: e.target.value })}
+              >
+                {MOUNTING_TYPES.map((t) => (
+                  <MenuItem key={t.value} value={t.value}>
+                    {t.label}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={form.is_lowest_basement_level}
+                  onChange={(e) => setForm({ ...form, is_lowest_basement_level: e.target.checked })}
+                />
+              }
+              label="Local situé à l'étage le plus bas en sous-sol (C.3.2.3)"
+            />
+
             {error && <Alert severity="error">{error}</Alert>}
 
             <Button variant="contained" size="large" onClick={submit} disabled={loading}>
@@ -245,7 +276,18 @@ export default function QuickCalc() {
             <Paper sx={{ p: 3 }}>
               <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
                 <Typography variant="h6">Résultats instantanés</Typography>
-                <RiskIndicator conformity={result.concentration.conformity} />
+                <Stack direction="row" spacing={1} alignItems="center">
+                  <Chip
+                    size="small"
+                    variant="outlined"
+                    label={
+                      result.concentration.method_used === "A"
+                        ? "Méthode C.2 (climatisation/PAC confort)"
+                        : "Méthode C.3 (autre solution)"
+                    }
+                  />
+                  <RiskIndicator conformity={result.concentration.conformity} />
+                </Stack>
               </Stack>
               <Grid container spacing={2} alignItems="center">
                 <Grid item xs={12} sm={5} sx={{ display: "flex", justifyContent: "center" }}>
@@ -291,12 +333,48 @@ export default function QuickCalc() {
                       </TableRow>
                       <TableRow>
                         <TableCell>Limite applicable ({result.concentration.limit_type})</TableCell>
-                        <TableCell align="right">{result.concentration.limit_used_kg_m3} kg/m³</TableCell>
+                        <TableCell align="right">
+                          {result.concentration.limit_used_kg_m3 ?? "-"}
+                          {result.concentration.method_used === "A" ? " kg" : " kg/m³"}
+                        </TableCell>
                       </TableRow>
+                      {result.concentration.method_used === "B" && (
+                        <>
+                          <TableRow>
+                            <TableCell>RCL / QLMV / QLAV</TableCell>
+                            <TableCell align="right">
+                              {result.concentration.general.rcl_kg_m3 ?? "-"} /{" "}
+                              {result.concentration.general.qlmv_kg_m3 ?? "-"} /{" "}
+                              {result.concentration.general.qlav_kg_m3 ?? "-"} kg/m³
+                            </TableCell>
+                          </TableRow>
+                          <TableRow>
+                            <TableCell>Mesures compensatoires requises</TableCell>
+                            <TableCell align="right">{result.concentration.general.measures_required}</TableCell>
+                          </TableRow>
+                        </>
+                      )}
+                      {result.concentration.method_used === "A" && result.concentration.split_system && (
+                        <TableRow>
+                          <TableCell>Surface minimale requise (Amin)</TableCell>
+                          <TableCell align="right">
+                            {result.concentration.split_system.amin_m2 ?? "-"} m²
+                          </TableCell>
+                        </TableRow>
+                      )}
                     </TableBody>
                   </Table>
                 </Grid>
               </Grid>
+              {result.concentration.notes.length > 0 && (
+                <Stack spacing={0.5} sx={{ mt: 2 }}>
+                  {result.concentration.notes.map((note, i) => (
+                    <Typography key={i} variant="caption" color="text.secondary">
+                      • {note}
+                    </Typography>
+                  ))}
+                </Stack>
+              )}
             </Paper>
 
             <Paper sx={{ p: 3 }}>

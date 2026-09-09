@@ -43,11 +43,20 @@ class SystemType(str, enum.Enum):
 
 
 class AccessCategory(str, enum.Enum):
-    """Catégorie d'accès au local (simplifiée, cf. NF EN 378-1)."""
+    """Catégorie d'accès au local — NF EN 378-1, Tableau 4."""
 
-    GENERAL = "Accès général (public)"
-    SUPERVISE = "Accès supervisé"
-    AUTORISE = "Accès autorisé uniquement (personnel qualifié)"
+    GENERAL = "Accès général (a)"
+    SURVEILLE = "Accès surveillé (b)"
+    RESERVE = "Accès réservé (c)"
+
+
+class MountingType(str, enum.Enum):
+    """Emplacement d'installation de l'appareil — NF EN 378-1, C.2.1 (h0)."""
+
+    FLOOR = "floor"
+    WALL = "wall"
+    WINDOW = "window"
+    CEILING = "ceiling"
 
 
 class Conformity(str, enum.Enum):
@@ -100,6 +109,8 @@ class Room(Base):
     cooling_power_kw: Mapped[float | None] = mapped_column(Float, nullable=True)
     heating_power_kw: Mapped[float | None] = mapped_column(Float, nullable=True)
     indoor_units: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    mounting_type: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    is_lowest_basement_level: Mapped[bool] = mapped_column(Boolean, default=False)
 
     project: Mapped[Project] = relationship(back_populates="rooms")
 
@@ -114,9 +125,11 @@ class Fluid(Base):
     name: Mapped[str] = mapped_column(String(128))
     safety_group: Mapped[str] = mapped_column(String(8))  # A1, A2L, A2, A3, B1, B2L, B2
     lfl_kg_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
+    practical_limit_kg_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
+    atel_odl_kg_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
     rcl_kg_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
-    atel_kg_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
-    odl_kg_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
+    qlmv_kg_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
+    qlav_kg_m3: Mapped[float | None] = mapped_column(Float, nullable=True)
     gwp: Mapped[float | None] = mapped_column(Float, nullable=True)
     molar_mass_g_mol: Mapped[float | None] = mapped_column(Float, nullable=True)
     source: Mapped[str | None] = mapped_column(String(255), nullable=True)

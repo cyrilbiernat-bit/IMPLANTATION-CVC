@@ -16,14 +16,25 @@ export interface Fluid {
   name: string;
   safety_group: string;
   lfl_kg_m3?: number | null;
+  practical_limit_kg_m3?: number | null;
+  atel_odl_kg_m3?: number | null;
   rcl_kg_m3?: number | null;
-  atel_kg_m3?: number | null;
-  odl_kg_m3?: number | null;
+  qlmv_kg_m3?: number | null;
+  qlav_kg_m3?: number | null;
   gwp?: number | null;
   molar_mass_g_mol?: number | null;
   source?: string | null;
   editable: boolean;
 }
+
+export type MountingType = "floor" | "wall" | "window" | "ceiling";
+
+export const MOUNTING_TYPE_LABELS: Record<MountingType, string> = {
+  floor: "Plancher",
+  wall: "Montage au mur",
+  window: "Montage sur fenêtre",
+  ceiling: "Montage au plafond",
+};
 
 export interface Equipment {
   id: number;
@@ -47,16 +58,51 @@ export interface Manufacturer {
   equipments: Equipment[];
 }
 
+export interface GeneralMethodResult {
+  volume_m3: number;
+  volume_used_for_check_m3: number;
+  concentration_kg_m3: number;
+  rcl_kg_m3: number | null;
+  rcl_source: string;
+  qlmv_kg_m3: number | null;
+  qlmv_source: string;
+  qlav_kg_m3: number | null;
+  qlav_source: string;
+  conformity: string;
+  measures_required: number;
+  is_lowest_basement_level: boolean;
+  min_volume_required_m3: number | null;
+  min_surface_required_m2: number | null;
+  eligible: boolean;
+  eligibility_note: string | null;
+}
+
+export interface SplitSystemResult {
+  applicable: boolean;
+  reason: string | null;
+  m1_kg: number | null;
+  threshold_kg: number | null;
+  charge_above_threshold: boolean | null;
+  mmax_kg: number | null;
+  amin_m2: number | null;
+  conformity: string | null;
+  mounting_type: string | null;
+  h0: number | null;
+}
+
 export interface ConcentrationResult {
+  method_used: "A" | "B";
+  general: GeneralMethodResult;
+  split_system: SplitSystemResult | null;
   volume_m3: number;
   concentration_kg_m3: number;
-  limit_used_kg_m3: number;
+  limit_used_kg_m3: number | null;
   limit_type: string;
   conformity: "Conforme" | "Conforme sous conditions" | "Non conforme";
   margin_ratio: number;
-  min_volume_required_m3: number;
+  min_volume_required_m3: number | null;
   min_surface_required_m2?: number | null;
-  details: Record<string, unknown>;
+  notes: string[];
 }
 
 export interface Recommendation {
@@ -119,6 +165,9 @@ export interface MultiRoomRoomInput {
   fluid_code: string;
   charge_kg: number;
   access_category: string;
+  system_type?: string | null;
+  mounting_type?: string | null;
+  is_lowest_basement_level?: boolean;
 }
 
 export interface MultiRoomResponse {
@@ -156,4 +205,26 @@ export interface CctpRoomExtracted {
   room_type: string;
   surface_m2?: number | null;
   suggested_system_type?: string | null;
+}
+
+export interface ImportedRoomRow {
+  room_name: string;
+  room_type: string;
+  surface_m2: number | null;
+  height_m: number | null;
+  fluid_code: string | null;
+  charge_kg: number | null;
+}
+
+export interface RoomImportResponse {
+  source: string;
+  rooms: ImportedRoomRow[];
+  warnings: string[];
+}
+
+export interface PlanAnalysisResponse {
+  engine: string;
+  rooms: CctpRoomExtracted[];
+  warnings: string[];
+  extracted_text_preview: string;
 }
