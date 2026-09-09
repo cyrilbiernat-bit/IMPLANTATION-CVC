@@ -1,0 +1,243 @@
+from __future__ import annotations
+
+import json
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from .. import models, schemas
+from ..core import decision_engine, en378, sizing
+from ..database import get_db
+
+router = APIRouter(prefix="/api/calculations", tags=["calculations"])
+
+
+def _fluid_to_dataclass(fluid: models.Fluid) -> en378.FluidData:
+    return en378.FluidData(
+        code=fluid.code,
+        name=fluid.name,
+        safety_group=fluid.safety_group,
+        lfl_kg_m3=fluid.lfl_kg_m3,
+        rcl_kg_m3=fluid.rcl_kg_m3,
+        atel_kg_m3=fluid.atel_kg_m3,
+        odl_kg_m3=fluid.odl_kg_m3,
+        gwp=fluid.gwp,
+    )
+
+
+def _get_fluid_or_404(db: Session, code: str) -> models.Fluid:
+    fluid = db.query(models.Fluid).filter(models.Fluid.code == code).first()
+    if not fluid:
+        raise HTTPException(404, f"Fluide {code} introuvable dans la bibliothèque")
+    return fluid
+
+
+def _persist_result(
+    db: Session,
+    project_id: int,
+    room_id: int | None,
+    mode: str,
+    fluid_code: str,
+    charge_kg: float,
+    result: en378.ConcentrationResult,
+    recommendations: list[dict],
+) -> models.CalculationResult:
+    row = models.CalculationResult(
+        project_id=project_id,
+        room_id=room_id,
+        mode=mode,
+        fluid_code=fluid_code,
+        charge_kg=charge_kg,
+        volume_m3=result.volume_m3,
+        concentration_kg_m3=result.concentration_kg_m3,
+        limit_used_kg_m3=result.limit_used_kg_m3,
+        limit_type=result.limit_type,
+        conformity=result.conformity,
+        min_volume_required_m3=result.min_volume_required_m3,
+        min_surface_required_m2=result.min_surface_required_m2,
+        recommendations=json.dumps(recommendations, ensure_ascii=False),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.post("/quick")
+def quick_calc(payload: schemas.QuickCalcRequest, db: Session = Depends(get_db)):
+    fluid = _get_fluid_or_404(db, payload.fluid_code)
+    fluid_data = _fluid_to_dataclass(fluid)
+
+    loads = sizing.estimate_loads(payload.surface_m2, payload.building_type, payload.climate_zone)
+    cooling_power = payload.cooling_power_kw or loads["cooling_power_kw"]
+    heating_power = payload.heating_power_kw or loads["heating_power_kw"]
+
+    suggested_system = payload.system_type or sizing.suggest_system_type(
+        cooling_power, payload.indoor_units
+    )
+    charge_estimate = sizing.estimate_probable_charge(
+        suggested_system, cooling_power, payload.fluid_code, payload.indoor_units
+    )
+
+    result = en378.compute_concentration(
+        fluid_data,
+        charge_estimate["total_charge_kg"],
+        payload.surface_m2,
+        payload.height_m,
+        payload.access_category,
+    )
+    recommendations = decision_engine.recommend(
+        fluid.safety_group, result.conformity, result.margin_ratio, payload.room_type
+    )
+
+    equipment_matches = (
+        db.query(models.Equipment)
+        .filter(
+            models.Equipment.system_type == suggested_system,
+            models.Equipment.fluid_code == payload.fluid_code,
+            models.Equipment.cooling_power_kw >= cooling_power,
+        )
+        .order_by(models.Equipment.cooling_power_kw)
+        .limit(5)
+        .all()
+    )
+
+    project_id = payload.project_id
+    if not project_id and payload.project_name:
+        project = models.Project(name=payload.project_name, building_type=payload.building_type)
+        db.add(project)
+        db.commit()
+        db.refresh(project)
+        project_id = project.id
+
+    saved = None
+    if project_id:
+        saved = _persist_result(
+            db,
+            project_id,
+            None,
+            "rapide",
+            payload.fluid_code,
+            charge_estimate["total_charge_kg"],
+            result,
+            recommendations,
+        )
+
+    return {
+        "loads": loads,
+        "suggested_system_type": suggested_system,
+        "charge_estimate": charge_estimate,
+        "concentration": result.__dict__,
+        "recommendations": recommendations,
+        "equipment_suggestions": [
+            schemas.EquipmentOut.model_validate(e).model_dump() for e in equipment_matches
+        ],
+        "calculation_id": saved.id if saved else None,
+        "project_id": project_id,
+    }
+
+
+@router.post("/expert")
+def expert_calc(payload: schemas.ExpertCalcRequest, db: Session = Depends(get_db)):
+    if not payload.circuits:
+        raise HTTPException(400, "Au moins un circuit est requis")
+
+    circuit_totals = []
+    total_charge = 0.0
+    dominant_fluid_code = payload.circuits[0].fluid_code
+
+    for c in payload.circuits:
+        additional = c.additional_charge_kg_per_m * (c.equivalent_length_m or c.pipe_length_m)
+        circuit_total = round(c.factory_charge_kg + additional, 3)
+        total_charge += circuit_total
+        circuit_totals.append(
+            {
+                "name": c.name,
+                "factory_charge_kg": c.factory_charge_kg,
+                "additional_charge_kg": round(additional, 3),
+                "total_charge_kg": circuit_total,
+                "charge_per_zone_kg": round(circuit_total / max(c.zone_count, 1), 3),
+                "charge_per_indoor_unit_kg": round(circuit_total / max(c.indoor_unit_count, 1), 3),
+            }
+        )
+        if circuit_total == max(x["total_charge_kg"] for x in circuit_totals):
+            dominant_fluid_code = c.fluid_code
+
+    fluid = _get_fluid_or_404(db, dominant_fluid_code)
+    fluid_data = _fluid_to_dataclass(fluid)
+
+    result = en378.compute_concentration(
+        fluid_data, round(total_charge, 3), payload.surface_m2, payload.height_m, payload.access_category
+    )
+    recommendations = decision_engine.recommend(
+        fluid.safety_group, result.conformity, result.margin_ratio, payload.room_type
+    )
+
+    saved = None
+    if payload.project_id:
+        saved = _persist_result(
+            db,
+            payload.project_id,
+            None,
+            "expert",
+            dominant_fluid_code,
+            round(total_charge, 3),
+            result,
+            recommendations,
+        )
+
+    return {
+        "circuits": circuit_totals,
+        "total_charge_kg": round(total_charge, 3),
+        "dominant_fluid_code": dominant_fluid_code,
+        "concentration": result.__dict__,
+        "recommendations": recommendations,
+        "calculation_id": saved.id if saved else None,
+    }
+
+
+@router.post("/multi-room")
+def multi_room(payload: schemas.MultiRoomRequest, db: Session = Depends(get_db)):
+    if not payload.rooms:
+        raise HTTPException(400, "Au moins un local est requis")
+
+    analyses = []
+    room_details = []
+    for r in payload.rooms:
+        fluid = _get_fluid_or_404(db, r.fluid_code)
+        fluid_data = _fluid_to_dataclass(fluid)
+        result = en378.compute_concentration(
+            fluid_data, r.charge_kg, r.surface_m2, r.height_m, r.access_category
+        )
+        recommendations = decision_engine.recommend(
+            fluid.safety_group, result.conformity, result.margin_ratio, r.room_type
+        )
+        analyses.append(en378.RoomAnalysis(room_name=r.room_name, result=result))
+        room_details.append(
+            {
+                "room_name": r.room_name,
+                "room_type": r.room_type,
+                "result": result.__dict__,
+                "recommendations": recommendations,
+            }
+        )
+
+    summary = en378.multi_room_analysis(analyses)
+    return {"summary": summary, "rooms": room_details}
+
+
+@router.post("/inverse")
+def inverse_calc(payload: schemas.InverseCalcRequest, db: Session = Depends(get_db)):
+    fluid = _get_fluid_or_404(db, payload.fluid_code)
+    fluid_data = _fluid_to_dataclass(fluid)
+    result = en378.inverse_min_volume(fluid_data, payload.charge_kg, payload.access_category)
+    result["min_surface_required_m2"] = round(result["min_volume_m3"] / payload.height_m, 3)
+    return result
+
+
+@router.get("/history", response_model=list[schemas.CalculationResultOut])
+def calculation_history(project_id: int | None = None, db: Session = Depends(get_db)):
+    q = db.query(models.CalculationResult).order_by(models.CalculationResult.created_at.desc())
+    if project_id:
+        q = q.filter(models.CalculationResult.project_id == project_id)
+    return q.limit(100).all()

@@ -1,0 +1,17 @@
+# Backend (Python)
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.db
+backend/app/media/
+*.pyc
+
+# Frontend (Node)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+
+# OS / editors
+.DS_Store
+*.log
+frontend/tsconfig.tsbuildinfo

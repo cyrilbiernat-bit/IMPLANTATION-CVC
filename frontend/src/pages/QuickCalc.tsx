@@ -1,0 +1,352 @@
+import {
+  Alert,
+  Box,
+  Button,
+  Card,
+  CardContent,
+  Chip,
+  Divider,
+  Grid,
+  MenuItem,
+  Paper,
+  Stack,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableRow,
+  TextField,
+  Typography,
+} from "@mui/material";
+import { useEffect, useState } from "react";
+import { api, extractErrorMessage } from "../api/client";
+import ComplianceGauge from "../components/ComplianceGauge";
+import RiskIndicator from "../components/RiskIndicator";
+import { useProject } from "../context/ProjectContext";
+import { Fluid, QuickCalcResponse } from "../types";
+
+const BUILDING_TYPES = ["tertiaire", "residentiel", "industriel", "commercial", "erp", "hotel", "sante", "logistique"];
+const ROOM_TYPES = ["bureau", "salle_reunion", "chambre", "hotel", "erp", "laboratoire", "local_technique", "commercial", "industriel", "logistique"];
+const SYSTEM_TYPES = ["DRV", "Multi-split", "Split", "Groupe eau glacee", "PAC", "Centrale frigorifique", "Meuble frigorifique"];
+const ACCESS_CATEGORIES = [
+  "Accès général (public)",
+  "Accès supervisé",
+  "Accès autorisé uniquement (personnel qualifié)",
+];
+const CLIMATE_ZONES = ["H1", "H2", "H3"];
+
+export default function QuickCalc() {
+  const { currentProject, setCurrentProject } = useProject();
+  const [fluids, setFluids] = useState<Fluid[]>([]);
+  const [form, setForm] = useState({
+    building_type: "tertiaire",
+    room_name: "Bureau 1",
+    room_type: "bureau",
+    surface_m2: 25,
+    height_m: 2.6,
+    system_type: "",
+    fluid_code: "R32",
+    cooling_power_kw: undefined as number | undefined,
+    heating_power_kw: undefined as number | undefined,
+    indoor_units: 1,
+    access_category: ACCESS_CATEGORIES[0],
+    climate_zone: "H2",
+  });
+  const [result, setResult] = useState<QuickCalcResponse | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    api.get<Fluid[]>("/fluids").then((r) => setFluids(r.data));
+  }, []);
+
+  const submit = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const payload: Record<string, unknown> = {
+        ...form,
+        project_id: currentProject?.id,
+        project_name: currentProject ? undefined : `Étude rapide — ${form.room_name}`,
+        system_type: form.system_type || undefined,
+      };
+      const r = await api.post<QuickCalcResponse>("/calculations/quick", payload);
+      setResult(r.data);
+      if (!currentProject && r.data.project_id) {
+        setCurrentProject({ id: r.data.project_id, name: payload.project_name as string });
+      }
+    } catch (e: any) {
+      setError(extractErrorMessage(e, "Erreur lors du calcul."));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Grid container spacing={3}>
+      <Grid item xs={12} lg={5}>
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6" gutterBottom>
+            Prédimensionnement
+          </Typography>
+          <Stack spacing={2}>
+            <TextField
+              select
+              label="Type de bâtiment"
+              value={form.building_type}
+              onChange={(e) => setForm({ ...form, building_type: e.target.value })}
+            >
+              {BUILDING_TYPES.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
+              ))}
+            </TextField>
+            <TextField
+              label="Nom du local"
+              value={form.room_name}
+              onChange={(e) => setForm({ ...form, room_name: e.target.value })}
+            />
+            <TextField
+              select
+              label="Type de local"
+              value={form.room_type}
+              onChange={(e) => setForm({ ...form, room_type: e.target.value })}
+            >
+              {ROOM_TYPES.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
+              ))}
+            </TextField>
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Surface (m²)"
+                type="number"
+                fullWidth
+                value={form.surface_m2}
+                onChange={(e) => setForm({ ...form, surface_m2: Number(e.target.value) })}
+              />
+              <TextField
+                label="Hauteur sous plafond (m)"
+                type="number"
+                fullWidth
+                value={form.height_m}
+                onChange={(e) => setForm({ ...form, height_m: Number(e.target.value) })}
+              />
+            </Stack>
+            <Typography variant="caption" color="text.secondary">
+              Volume calculé : {(form.surface_m2 * form.height_m).toFixed(1)} m³
+            </Typography>
+
+            <TextField
+              select
+              label="Système (laisser vide pour proposition automatique)"
+              value={form.system_type}
+              onChange={(e) => setForm({ ...form, system_type: e.target.value })}
+            >
+              <MenuItem value="">— Proposition automatique —</MenuItem>
+              {SYSTEM_TYPES.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              label="Fluide frigorigène"
+              value={form.fluid_code}
+              onChange={(e) => setForm({ ...form, fluid_code: e.target.value })}
+            >
+              {fluids.map((f) => (
+                <MenuItem key={f.code} value={f.code}>
+                  {f.code} — {f.name} ({f.safety_group})
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <Stack direction="row" spacing={2}>
+              <TextField
+                label="Puissance frigorifique (kW)"
+                type="number"
+                fullWidth
+                helperText="Optionnel — estimée automatiquement sinon"
+                value={form.cooling_power_kw ?? ""}
+                onChange={(e) =>
+                  setForm({ ...form, cooling_power_kw: e.target.value ? Number(e.target.value) : undefined })
+                }
+              />
+              <TextField
+                label="Puissance chauffage (kW)"
+                type="number"
+                fullWidth
+                helperText="Optionnel"
+                value={form.heating_power_kw ?? ""}
+                onChange={(e) =>
+                  setForm({ ...form, heating_power_kw: e.target.value ? Number(e.target.value) : undefined })
+                }
+              />
+            </Stack>
+
+            <TextField
+              label="Nombre d'unités intérieures"
+              type="number"
+              value={form.indoor_units}
+              onChange={(e) => setForm({ ...form, indoor_units: Number(e.target.value) })}
+            />
+
+            <TextField
+              select
+              label="Catégorie d'accès du local"
+              value={form.access_category}
+              onChange={(e) => setForm({ ...form, access_category: e.target.value })}
+            >
+              {ACCESS_CATEGORIES.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            <TextField
+              select
+              label="Zone climatique"
+              value={form.climate_zone}
+              onChange={(e) => setForm({ ...form, climate_zone: e.target.value })}
+            >
+              {CLIMATE_ZONES.map((t) => (
+                <MenuItem key={t} value={t}>
+                  {t}
+                </MenuItem>
+              ))}
+            </TextField>
+
+            {error && <Alert severity="error">{error}</Alert>}
+
+            <Button variant="contained" size="large" onClick={submit} disabled={loading}>
+              {loading ? "Calcul en cours..." : "Calculer"}
+            </Button>
+          </Stack>
+        </Paper>
+      </Grid>
+
+      <Grid item xs={12} lg={7}>
+        {!result && (
+          <Paper sx={{ p: 3, height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Typography color="text.secondary">
+              Renseignez les paramètres du local et cliquez sur « Calculer » pour obtenir une
+              estimation instantanée de la charge de fluide et de la conformité NF EN 378-1.
+            </Typography>
+          </Paper>
+        )}
+        {result && (
+          <Stack spacing={2}>
+            <Paper sx={{ p: 3 }}>
+              <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
+                <Typography variant="h6">Résultats instantanés</Typography>
+                <RiskIndicator conformity={result.concentration.conformity} />
+              </Stack>
+              <Grid container spacing={2} alignItems="center">
+                <Grid item xs={12} sm={5} sx={{ display: "flex", justifyContent: "center" }}>
+                  <ComplianceGauge
+                    marginRatio={result.concentration.margin_ratio}
+                    conformity={result.concentration.conformity}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={7}>
+                  <Table size="small">
+                    <TableBody>
+                      <TableRow>
+                        <TableCell>Système proposé</TableCell>
+                        <TableCell align="right">
+                          <Chip size="small" label={result.suggested_system_type} />
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Besoin froid / chaud</TableCell>
+                        <TableCell align="right">
+                          {result.loads.cooling_power_kw} kW / {result.loads.heating_power_kw} kW
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Charge probable estimée</TableCell>
+                        <TableCell align="right">{result.charge_estimate.total_charge_kg} kg</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Charge / unité intérieure</TableCell>
+                        <TableCell align="right">
+                          {result.charge_estimate.charge_per_indoor_unit_kg} kg
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Volume du local</TableCell>
+                        <TableCell align="right">{result.concentration.volume_m3} m³</TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Concentration calculée</TableCell>
+                        <TableCell align="right">
+                          {result.concentration.concentration_kg_m3} kg/m³
+                        </TableCell>
+                      </TableRow>
+                      <TableRow>
+                        <TableCell>Limite applicable ({result.concentration.limit_type})</TableCell>
+                        <TableCell align="right">{result.concentration.limit_used_kg_m3} kg/m³</TableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </Grid>
+              </Grid>
+            </Paper>
+
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" gutterBottom>
+                Alertes et recommandations NF EN 378-1
+              </Typography>
+              <Stack spacing={1}>
+                {result.recommendations.map((rec, i) => (
+                  <Alert
+                    key={i}
+                    severity={
+                      rec.priority === "haute" ? "error" : rec.priority === "moyenne" ? "warning" : "info"
+                    }
+                  >
+                    <b>{rec.measure}</b> — {rec.reason}
+                  </Alert>
+                ))}
+              </Stack>
+            </Paper>
+
+            {result.equipment_suggestions.length > 0 && (
+              <Paper sx={{ p: 3 }}>
+                <Typography variant="h6" gutterBottom>
+                  Équipements compatibles (bibliothèque)
+                </Typography>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Référence</TableCell>
+                      <TableCell>Puissance froid</TableCell>
+                      <TableCell>Charge usine</TableCell>
+                      <TableCell>Longueur max.</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {result.equipment_suggestions.map((e) => (
+                      <TableRow key={e.id}>
+                        <TableCell>{e.reference}</TableCell>
+                        <TableCell>{e.cooling_power_kw} kW</TableCell>
+                        <TableCell>{e.factory_charge_kg} kg</TableCell>
+                        <TableCell>{e.max_pipe_length_m ?? "-"} m</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Paper>
+            )}
+          </Stack>
+        )}
+      </Grid>
+    </Grid>
+  );
+}
