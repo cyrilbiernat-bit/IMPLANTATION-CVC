@@ -121,6 +121,7 @@ export interface QuickCalcResponse {
     charge_per_indoor_unit_kg: number;
     estimated_pipe_length_m: number;
     fluid_code: string;
+    equipment_reference?: string;
   };
   concentration: ConcentrationResult;
   recommendations: Recommendation[];
@@ -139,6 +140,7 @@ export interface ExpertCircuitInput {
   equivalent_length_m?: number | null;
   zone_count: number;
   indoor_unit_count: number;
+  equipment_id?: number;
 }
 
 export interface ExpertCalcResponse {

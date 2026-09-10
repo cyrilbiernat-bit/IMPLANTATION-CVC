@@ -121,6 +121,7 @@ class QuickCalcRequest(BaseModel):
     height_m: float
     system_type: str | None = None
     fluid_code: str
+    equipment_id: int | None = None
     cooling_power_kw: float | None = None
     heating_power_kw: float | None = None
     indoor_units: int = 1

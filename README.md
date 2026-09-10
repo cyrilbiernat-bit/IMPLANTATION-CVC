@@ -42,7 +42,11 @@ exemples chiffrés de son Annexe H (voir `backend/tests/test_en378.py`). Les
 valeurs de fluides non tabulées au Tableau C.3 sont calculées par
 l'application à partir de l'Annexe E selon la méthode décrite en C.3.2.1 (une
 approximation, documentée comme telle dans la bibliothèque fluides). Le
-catalogue équipements constructeurs reste un jeu de données d'exemple. Une
+catalogue équipements constructeurs reste un jeu de données d'exemple (8
+fabricants × 8 références DRV/split par fabricant). La sélection d'une
+référence dans le mode Rapide ou dans un circuit du mode Expert présaisit
+automatiquement le fluide et la charge usine/complémentaire correspondants
+(modifiables ensuite). Une
 vérification par un professionnel qualifié par rapport à l'édition en vigueur
 de la norme et aux fiches de données de sécurité (FDS) des fabricants reste
 requise avant toute utilisation à des fins de conformité réglementaire

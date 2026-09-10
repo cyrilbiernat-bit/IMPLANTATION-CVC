@@ -23,7 +23,7 @@ import ComplianceGauge from "../components/ComplianceGauge";
 import RiskIndicator from "../components/RiskIndicator";
 import { ACCESS_CATEGORIES, COMFORT_AC_SYSTEM_TYPES, MOUNTING_TYPES } from "../constants";
 import { useProject } from "../context/ProjectContext";
-import { Fluid, QuickCalcResponse } from "../types";
+import { Fluid, Manufacturer, QuickCalcResponse } from "../types";
 
 const BUILDING_TYPES = ["tertiaire", "residentiel", "industriel", "commercial", "erp", "hotel", "sante", "logistique"];
 const ROOM_TYPES = ["bureau", "salle_reunion", "chambre", "hotel", "erp", "laboratoire", "local_technique", "commercial", "industriel", "logistique"];
@@ -49,14 +49,32 @@ export default function QuickCalc() {
     climate_zone: "H2",
     mounting_type: "wall",
     is_lowest_basement_level: false,
+    equipment_id: undefined as number | undefined,
   });
   const [result, setResult] = useState<QuickCalcResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
 
   useEffect(() => {
     api.get<Fluid[]>("/fluids").then((r) => setFluids(r.data));
+    api.get<Manufacturer[]>("/equipment/manufacturers").then((r) => setManufacturers(r.data));
   }, []);
+
+  const selectEquipment = (equipmentId: string) => {
+    if (!equipmentId) {
+      setForm({ ...form, equipment_id: undefined });
+      return;
+    }
+    const id = Number(equipmentId);
+    const equip = manufacturers.flatMap((m) => m.equipments).find((e) => e.id === id);
+    setForm({
+      ...form,
+      equipment_id: id,
+      fluid_code: equip?.fluid_code ?? form.fluid_code,
+      system_type: equip?.system_type ?? form.system_type,
+    });
+  };
 
   const selectedFluid = useMemo(
     () => fluids.find((f) => f.code === form.fluid_code),
@@ -149,6 +167,7 @@ export default function QuickCalc() {
               select
               label="Système (laisser vide pour proposition automatique)"
               value={form.system_type}
+              disabled={!!form.equipment_id}
               onChange={(e) => setForm({ ...form, system_type: e.target.value })}
             >
               <MenuItem value="">— Proposition automatique —</MenuItem>
@@ -163,6 +182,7 @@ export default function QuickCalc() {
               select
               label="Fluide frigorigène"
               value={form.fluid_code}
+              disabled={!!form.equipment_id}
               onChange={(e) => setForm({ ...form, fluid_code: e.target.value })}
             >
               {fluids.map((f) => (
@@ -171,6 +191,31 @@ export default function QuickCalc() {
                 </MenuItem>
               ))}
             </TextField>
+
+            <TextField
+              select
+              label="Équipement (optionnel — présaisie de la charge depuis la bibliothèque)"
+              value={form.equipment_id ?? ""}
+              onChange={(e) => selectEquipment(e.target.value)}
+            >
+              <MenuItem value="">— Aucun (charge estimée par ratio) —</MenuItem>
+              {manufacturers.map((m) => [
+                <MenuItem key={`h-${m.id}`} disabled sx={{ fontWeight: 700, opacity: "1 !important" }}>
+                  {m.name}
+                </MenuItem>,
+                ...m.equipments.map((e) => (
+                  <MenuItem key={e.id} value={e.id} sx={{ pl: 4 }}>
+                    {e.reference} — {e.system_type}, {e.fluid_code}, {e.cooling_power_kw} kW ({e.factory_charge_kg} kg
+                    usine)
+                  </MenuItem>
+                )),
+              ])}
+            </TextField>
+            {form.equipment_id && (
+              <Typography variant="caption" color="text.secondary" sx={{ mt: -1 }}>
+                La charge sera présaisie depuis cet équipement (fluide et système verrouillés en conséquence).
+              </Typography>
+            )}
 
             <Stack direction="row" spacing={2}>
               <TextField
@@ -311,8 +356,18 @@ export default function QuickCalc() {
                           {result.loads.cooling_power_kw} kW / {result.loads.heating_power_kw} kW
                         </TableCell>
                       </TableRow>
+                      {result.charge_estimate.equipment_reference && (
+                        <TableRow>
+                          <TableCell>Équipement sélectionné</TableCell>
+                          <TableCell align="right">
+                            <Chip size="small" label={result.charge_estimate.equipment_reference} />
+                          </TableCell>
+                        </TableRow>
+                      )}
                       <TableRow>
-                        <TableCell>Charge probable estimée</TableCell>
+                        <TableCell>
+                          {result.charge_estimate.equipment_reference ? "Charge (fiche équipement)" : "Charge probable estimée"}
+                        </TableCell>
                         <TableCell align="right">{result.charge_estimate.total_charge_kg} kg</TableCell>
                       </TableRow>
                       <TableRow>

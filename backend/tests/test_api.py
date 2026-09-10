@@ -62,6 +62,31 @@ def test_quick_calc_flow():
     }
 
 
+def test_quick_calc_with_equipment_prefill():
+    equipment_list = client.get("/api/equipment", params={"manufacturer": "Daikin", "system_type": "DRV"}).json()
+    assert equipment_list, "seeded Daikin DRV equipment expected"
+    equip = next(e for e in equipment_list if e["cooling_power_kw"] == 8.0)
+
+    payload = {
+        "project_name": "Test projet équipement",
+        "building_type": "tertiaire",
+        "room_name": "Local technique",
+        "room_type": "local_technique",
+        "surface_m2": 15,
+        "height_m": 2.5,
+        "fluid_code": "R410A",  # should be overridden by the equipment's own fluid
+        "equipment_id": equip["id"],
+        "indoor_units": 1,
+    }
+    r = client.post("/api/calculations/quick", json=payload)
+    assert r.status_code == 200
+    data = r.json()
+    assert data["charge_estimate"]["factory_charge_kg"] == equip["factory_charge_kg"]
+    assert data["charge_estimate"]["equipment_reference"] == equip["reference"]
+    assert data["suggested_system_type"] == "DRV"
+    assert data["concentration"]["general"] is not None  # fluid_code resolved from equipment (R32), not payload's R410A
+
+
 def test_expert_calc_flow():
     payload = {
         "room_name": "Local technique",

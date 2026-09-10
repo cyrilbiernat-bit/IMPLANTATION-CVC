@@ -73,19 +73,41 @@ def _persist_result(
 
 @router.post("/quick")
 def quick_calc(payload: schemas.QuickCalcRequest, db: Session = Depends(get_db)):
-    fluid = _get_fluid_or_404(db, payload.fluid_code)
-    fluid_data = _fluid_to_dataclass(fluid)
-
     loads = sizing.estimate_loads(payload.surface_m2, payload.building_type, payload.climate_zone)
     cooling_power = payload.cooling_power_kw or loads["cooling_power_kw"]
     heating_power = payload.heating_power_kw or loads["heating_power_kw"]
 
-    suggested_system = payload.system_type or sizing.suggest_system_type(
-        cooling_power, payload.indoor_units
+    selected_equipment = (
+        db.get(models.Equipment, payload.equipment_id) if payload.equipment_id else None
     )
-    charge_estimate = sizing.estimate_probable_charge(
-        suggested_system, cooling_power, payload.fluid_code, payload.indoor_units
+
+    fluid_code = selected_equipment.fluid_code if selected_equipment else payload.fluid_code
+    fluid = _get_fluid_or_404(db, fluid_code)
+    fluid_data = _fluid_to_dataclass(fluid)
+
+    suggested_system = (
+        selected_equipment.system_type if selected_equipment
+        else payload.system_type or sizing.suggest_system_type(cooling_power, payload.indoor_units)
     )
+
+    if selected_equipment:
+        pipe_length = max(payload.indoor_units, 1) * 5
+        additional_charge = round(selected_equipment.additional_charge_kg_per_m * pipe_length, 2)
+        total_charge = round(selected_equipment.factory_charge_kg + additional_charge, 2)
+        charge_estimate = {
+            "factory_charge_kg": selected_equipment.factory_charge_kg,
+            "additional_charge_kg": additional_charge,
+            "total_charge_kg": total_charge,
+            "charge_per_indoor_unit_kg": round(total_charge / max(payload.indoor_units, 1), 3),
+            "estimated_pipe_length_m": pipe_length,
+            "fluid_code": fluid_code,
+            "equipment_reference": selected_equipment.reference,
+        }
+        cooling_power = selected_equipment.cooling_power_kw
+    else:
+        charge_estimate = sizing.estimate_probable_charge(
+            suggested_system, cooling_power, fluid_code, payload.indoor_units
+        )
 
     result = en378.compute_concentration(
         fluid_data,
@@ -104,7 +126,7 @@ def quick_calc(payload: schemas.QuickCalcRequest, db: Session = Depends(get_db))
         db.query(models.Equipment)
         .filter(
             models.Equipment.system_type == suggested_system,
-            models.Equipment.fluid_code == payload.fluid_code,
+            models.Equipment.fluid_code == fluid_code,
             models.Equipment.cooling_power_kw >= cooling_power,
         )
         .order_by(models.Equipment.cooling_power_kw)
@@ -127,7 +149,7 @@ def quick_calc(payload: schemas.QuickCalcRequest, db: Session = Depends(get_db))
             project_id,
             None,
             "rapide",
-            payload.fluid_code,
+            fluid_code,
             charge_estimate["total_charge_kg"],
             result,
             recommendations,

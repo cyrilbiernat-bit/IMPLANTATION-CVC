@@ -36,6 +36,7 @@ import {
   ExpertCalcResponse,
   ExpertCircuitInput,
   Fluid,
+  Manufacturer,
   MultiRoomResponse,
   MultiRoomRoomInput,
   PlanAnalysisResponse,
@@ -79,9 +80,11 @@ export default function ExpertCalc() {
   const { currentProject } = useProject();
   const [tab, setTab] = useState(0);
   const [fluids, setFluids] = useState<Fluid[]>([]);
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
 
   useEffect(() => {
     api.get<Fluid[]>("/fluids").then((r) => setFluids(r.data));
+    api.get<Manufacturer[]>("/equipment/manufacturers").then((r) => setManufacturers(r.data));
   }, []);
 
   return (
@@ -97,13 +100,13 @@ export default function ExpertCalc() {
         <Tab label="Calcul détaillé (circuits)" />
         <Tab label="Analyse multilocaux" />
       </Tabs>
-      {tab === 0 && <ExpertCircuitsPanel fluids={fluids} />}
+      {tab === 0 && <ExpertCircuitsPanel fluids={fluids} manufacturers={manufacturers} />}
       {tab === 1 && <MultiRoomPanel fluids={fluids} />}
     </Stack>
   );
 }
 
-function ExpertCircuitsPanel({ fluids }: { fluids: Fluid[] }) {
+function ExpertCircuitsPanel({ fluids, manufacturers }: { fluids: Fluid[]; manufacturers: Manufacturer[] }) {
   const { currentProject } = useProject();
   const [roomName, setRoomName] = useState("Local technique");
   const [roomType, setRoomType] = useState("local_technique");
@@ -123,6 +126,22 @@ function ExpertCircuitsPanel({ fluids }: { fluids: Fluid[] }) {
 
   const updateCircuit = (idx: number, patch: Partial<ExpertCircuitInput>) => {
     setCircuits((cs) => cs.map((c, i) => (i === idx ? { ...c, ...patch } : c)));
+  };
+
+  const selectCircuitEquipment = (idx: number, equipmentId: string) => {
+    if (!equipmentId) {
+      updateCircuit(idx, { equipment_id: undefined });
+      return;
+    }
+    const id = Number(equipmentId);
+    const equip = manufacturers.flatMap((m) => m.equipments).find((e) => e.id === id);
+    if (!equip) return;
+    updateCircuit(idx, {
+      equipment_id: id,
+      fluid_code: equip.fluid_code,
+      factory_charge_kg: equip.factory_charge_kg,
+      additional_charge_kg_per_m: equip.additional_charge_kg_per_m,
+    });
   };
 
   const submit = async () => {
@@ -233,7 +252,29 @@ function ExpertCircuitsPanel({ fluids }: { fluids: Fluid[] }) {
                   <TextField label="Nom" fullWidth size="small" value={c.name} onChange={(e) => updateCircuit(idx, { name: e.target.value })} />
                 </Grid>
                 <Grid item xs={12} sm={6}>
-                  <TextField select label="Fluide" fullWidth size="small" value={c.fluid_code} onChange={(e) => updateCircuit(idx, { fluid_code: e.target.value })}>
+                  <TextField
+                    select
+                    label="Équipement (optionnel — présaisie)"
+                    fullWidth
+                    size="small"
+                    value={c.equipment_id ?? ""}
+                    onChange={(e) => selectCircuitEquipment(idx, e.target.value)}
+                  >
+                    <MenuItem value="">— Aucun (saisie manuelle) —</MenuItem>
+                    {manufacturers.map((m) => [
+                      <MenuItem key={`h-${m.id}`} disabled sx={{ fontWeight: 700, opacity: "1 !important" }}>
+                        {m.name}
+                      </MenuItem>,
+                      ...m.equipments.map((e) => (
+                        <MenuItem key={e.id} value={e.id} sx={{ pl: 4 }}>
+                          {e.reference} — {e.system_type}, {e.fluid_code}, {e.factory_charge_kg} kg usine
+                        </MenuItem>
+                      )),
+                    ])}
+                  </TextField>
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField select label="Fluide" fullWidth size="small" disabled={!!c.equipment_id} value={c.fluid_code} onChange={(e) => updateCircuit(idx, { fluid_code: e.target.value })}>
                     {fluids.map((f) => (
                       <MenuItem key={f.code} value={f.code}>
                         {f.code}
@@ -247,6 +288,7 @@ function ExpertCircuitsPanel({ fluids }: { fluids: Fluid[] }) {
                     type="number"
                     fullWidth
                     size="small"
+                    disabled={!!c.equipment_id}
                     value={c.factory_charge_kg}
                     onChange={(e) => updateCircuit(idx, { factory_charge_kg: Number(e.target.value) })}
                   />

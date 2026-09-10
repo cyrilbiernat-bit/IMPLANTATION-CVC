@@ -184,6 +184,9 @@ footer.disclaimer{font-size:11px;color:var(--muted);border-top:1px solid var(--b
               <select id="qc-system-type"><option value="">— Proposition automatique —</option></select>
             </div>
             <div class="field"><label>Fluide frigorigène</label><select id="qc-fluid"></select></div>
+            <div class="field"><label>Équipement (optionnel — présaisie de la charge depuis la bibliothèque)</label><select id="qc-equipment"><option value="">— Aucun (charge estimée par ratio) —</option></select>
+              <div class="hint" id="qc-equipment-hint"></div>
+            </div>
             <div class="field row2">
               <div><label>Puissance frigorifique (kW) — optionnel</label><input type="number" id="qc-cooling-power"></div>
               <div><label>Puissance chauffage (kW) — optionnel</label><input type="number" id="qc-heating-power"></div>
@@ -694,31 +697,85 @@ const DEFAULT_FLUIDS = [
 
 const MANUFACTURERS = ['Daikin','Mitsubishi Electric','Mitsubishi Heavy','Toshiba','Hitachi','Samsung','LG','Panasonic'];
 const DEFAULT_EQUIPMENT = {
-  'Daikin': [
-    {reference:'VRV 5 RXYQ8T', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:8.0, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:17},
-    {reference:'Perfera FTXM35', system_type:'Split', fluid_code:'R32', cooling_power_kw:3.5, heating_power_kw:4.0, factory_charge_kg:1.0, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+  "Daikin": [
+    {reference:"VRV 5 8kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:8, heating_power_kw:8.9, factory_charge_kg:2.9, additional_charge_kg_per_m:0.05, max_pipe_length_m:100, max_equivalent_length_m:125, max_indoor_units:6},
+    {reference:"VRV 5 14kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:14, heating_power_kw:15.6, factory_charge_kg:5, additional_charge_kg_per_m:0.065, max_pipe_length_m:130, max_equivalent_length_m:155, max_indoor_units:10},
+    {reference:"VRV 5 22.4kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:22.4, heating_power_kw:25, factory_charge_kg:8, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+    {reference:"VRV 5 33.5kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:33.5, heating_power_kw:37.4, factory_charge_kg:12, additional_charge_kg_per_m:0.09, max_pipe_length_m:190, max_equivalent_length_m:215, max_indoor_units:24},
+    {reference:"Perfera 2.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:2.5, heating_power_kw:2.8, factory_charge_kg:0.7, additional_charge_kg_per_m:0.02, max_pipe_length_m:15, max_equivalent_length_m:20, max_indoor_units:1},
+    {reference:"Perfera 3.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:3.5, heating_power_kw:4, factory_charge_kg:0.98, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+    {reference:"Perfera 5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:5, heating_power_kw:5.7, factory_charge_kg:1.4, additional_charge_kg_per_m:0.025, max_pipe_length_m:25, max_equivalent_length_m:30, max_indoor_units:1},
+    {reference:"Perfera Multi 6kW (3 zones)", system_type:"Multi-split", fluid_code:"R32", cooling_power_kw:6, heating_power_kw:6.7, factory_charge_kg:1.8, additional_charge_kg_per_m:0.03, max_pipe_length_m:30, max_equivalent_length_m:35, max_indoor_units:3},
   ],
-  'Mitsubishi Electric': [
-    {reference:'City Multi PURY-P200', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:7.5, additional_charge_kg_per_m:0.08, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
-    {reference:'MSZ-AP35VG', system_type:'Split', fluid_code:'R32', cooling_power_kw:3.5, heating_power_kw:4.2, factory_charge_kg:0.9, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+  "Mitsubishi Electric": [
+    {reference:"City Multi 8kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:8, heating_power_kw:8.9, factory_charge_kg:2.7, additional_charge_kg_per_m:0.05, max_pipe_length_m:100, max_equivalent_length_m:125, max_indoor_units:6},
+    {reference:"City Multi 14kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:14, heating_power_kw:15.6, factory_charge_kg:4.7, additional_charge_kg_per_m:0.065, max_pipe_length_m:130, max_equivalent_length_m:155, max_indoor_units:10},
+    {reference:"City Multi 22.4kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:22.4, heating_power_kw:25, factory_charge_kg:7.5, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+    {reference:"City Multi 33.5kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:33.5, heating_power_kw:37.4, factory_charge_kg:11.2, additional_charge_kg_per_m:0.09, max_pipe_length_m:190, max_equivalent_length_m:215, max_indoor_units:24},
+    {reference:"MSZ 2.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:2.5, heating_power_kw:2.8, factory_charge_kg:0.7, additional_charge_kg_per_m:0.02, max_pipe_length_m:15, max_equivalent_length_m:20, max_indoor_units:1},
+    {reference:"MSZ 3.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:3.5, heating_power_kw:4, factory_charge_kg:0.98, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+    {reference:"MSZ 5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:5, heating_power_kw:5.7, factory_charge_kg:1.4, additional_charge_kg_per_m:0.025, max_pipe_length_m:25, max_equivalent_length_m:30, max_indoor_units:1},
+    {reference:"MSZ Multi 6kW (3 zones)", system_type:"Multi-split", fluid_code:"R32", cooling_power_kw:6, heating_power_kw:6.7, factory_charge_kg:1.8, additional_charge_kg_per_m:0.03, max_pipe_length_m:30, max_equivalent_length_m:35, max_indoor_units:3},
   ],
-  'Mitsubishi Heavy': [
-    {reference:'FDC-VNP DRV', system_type:'DRV', fluid_code:'R410A', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:9.0, additional_charge_kg_per_m:0.09, max_pipe_length_m:150, max_equivalent_length_m:175, max_indoor_units:16},
+  "Mitsubishi Heavy": [
+    {reference:"FDC-WNP 8kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:8, heating_power_kw:8.9, factory_charge_kg:3.2, additional_charge_kg_per_m:0.055, max_pipe_length_m:90, max_equivalent_length_m:115, max_indoor_units:6},
+    {reference:"FDC-WNP 14kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:14, heating_power_kw:15.6, factory_charge_kg:5.6, additional_charge_kg_per_m:0.07, max_pipe_length_m:120, max_equivalent_length_m:145, max_indoor_units:10},
+    {reference:"FDC-WNP 22.4kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:22.4, heating_power_kw:25, factory_charge_kg:9, additional_charge_kg_per_m:0.09, max_pipe_length_m:150, max_equivalent_length_m:175, max_indoor_units:16},
+    {reference:"FDC-WNP 33.5kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:33.5, heating_power_kw:37.4, factory_charge_kg:13.5, additional_charge_kg_per_m:0.1, max_pipe_length_m:175, max_equivalent_length_m:200, max_indoor_units:24},
+    {reference:"SRK 2.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:2.5, heating_power_kw:2.8, factory_charge_kg:0.7, additional_charge_kg_per_m:0.02, max_pipe_length_m:15, max_equivalent_length_m:20, max_indoor_units:1},
+    {reference:"SRK 3.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:3.5, heating_power_kw:4, factory_charge_kg:0.98, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+    {reference:"SRK 5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:5, heating_power_kw:5.7, factory_charge_kg:1.4, additional_charge_kg_per_m:0.025, max_pipe_length_m:25, max_equivalent_length_m:30, max_indoor_units:1},
+    {reference:"SRK Multi 6kW (3 zones)", system_type:"Multi-split", fluid_code:"R32", cooling_power_kw:6, heating_power_kw:6.7, factory_charge_kg:1.8, additional_charge_kg_per_m:0.03, max_pipe_length_m:30, max_equivalent_length_m:35, max_indoor_units:3},
   ],
-  'Toshiba': [
-    {reference:'SHRM-e DRV', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:8.2, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+  "Toshiba": [
+    {reference:"SHRM-e 8kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:8, heating_power_kw:8.9, factory_charge_kg:2.9, additional_charge_kg_per_m:0.05, max_pipe_length_m:100, max_equivalent_length_m:125, max_indoor_units:6},
+    {reference:"SHRM-e 14kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:14, heating_power_kw:15.6, factory_charge_kg:5.1, additional_charge_kg_per_m:0.065, max_pipe_length_m:130, max_equivalent_length_m:155, max_indoor_units:10},
+    {reference:"SHRM-e 22.4kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:22.4, heating_power_kw:25, factory_charge_kg:8.2, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+    {reference:"SHRM-e 33.5kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:33.5, heating_power_kw:37.4, factory_charge_kg:12.3, additional_charge_kg_per_m:0.09, max_pipe_length_m:190, max_equivalent_length_m:215, max_indoor_units:24},
+    {reference:"Shorai 2.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:2.5, heating_power_kw:2.8, factory_charge_kg:0.7, additional_charge_kg_per_m:0.02, max_pipe_length_m:15, max_equivalent_length_m:20, max_indoor_units:1},
+    {reference:"Shorai 3.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:3.5, heating_power_kw:4, factory_charge_kg:0.98, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+    {reference:"Shorai 5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:5, heating_power_kw:5.7, factory_charge_kg:1.4, additional_charge_kg_per_m:0.025, max_pipe_length_m:25, max_equivalent_length_m:30, max_indoor_units:1},
+    {reference:"Shorai Multi 6kW (3 zones)", system_type:"Multi-split", fluid_code:"R32", cooling_power_kw:6, heating_power_kw:6.7, factory_charge_kg:1.8, additional_charge_kg_per_m:0.03, max_pipe_length_m:30, max_equivalent_length_m:35, max_indoor_units:3},
   ],
-  'Hitachi': [
-    {reference:'Set Free VRF FSXN', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:8.0, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+  "Hitachi": [
+    {reference:"Set Free VRF 8kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:8, heating_power_kw:8.9, factory_charge_kg:2.9, additional_charge_kg_per_m:0.05, max_pipe_length_m:100, max_equivalent_length_m:125, max_indoor_units:6},
+    {reference:"Set Free VRF 14kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:14, heating_power_kw:15.6, factory_charge_kg:5, additional_charge_kg_per_m:0.065, max_pipe_length_m:130, max_equivalent_length_m:155, max_indoor_units:10},
+    {reference:"Set Free VRF 22.4kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:22.4, heating_power_kw:25, factory_charge_kg:8, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+    {reference:"Set Free VRF 33.5kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:33.5, heating_power_kw:37.4, factory_charge_kg:12, additional_charge_kg_per_m:0.09, max_pipe_length_m:190, max_equivalent_length_m:215, max_indoor_units:24},
+    {reference:"Airhome 2.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:2.5, heating_power_kw:2.8, factory_charge_kg:0.7, additional_charge_kg_per_m:0.02, max_pipe_length_m:15, max_equivalent_length_m:20, max_indoor_units:1},
+    {reference:"Airhome 3.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:3.5, heating_power_kw:4, factory_charge_kg:0.98, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+    {reference:"Airhome 5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:5, heating_power_kw:5.7, factory_charge_kg:1.4, additional_charge_kg_per_m:0.025, max_pipe_length_m:25, max_equivalent_length_m:30, max_indoor_units:1},
+    {reference:"Airhome Multi 6kW (3 zones)", system_type:"Multi-split", fluid_code:"R32", cooling_power_kw:6, heating_power_kw:6.7, factory_charge_kg:1.8, additional_charge_kg_per_m:0.03, max_pipe_length_m:30, max_equivalent_length_m:35, max_indoor_units:3},
   ],
-  'Samsung': [
-    {reference:'DVM S2 AM220', system_type:'DRV', fluid_code:'R410A', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:9.5, additional_charge_kg_per_m:0.09, max_pipe_length_m:150, max_equivalent_length_m:175, max_indoor_units:16},
+  "Samsung": [
+    {reference:"DVM S2 8kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:8, heating_power_kw:8.9, factory_charge_kg:3.4, additional_charge_kg_per_m:0.055, max_pipe_length_m:90, max_equivalent_length_m:115, max_indoor_units:6},
+    {reference:"DVM S2 14kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:14, heating_power_kw:15.6, factory_charge_kg:5.9, additional_charge_kg_per_m:0.07, max_pipe_length_m:120, max_equivalent_length_m:145, max_indoor_units:10},
+    {reference:"DVM S2 22.4kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:22.4, heating_power_kw:25, factory_charge_kg:9.5, additional_charge_kg_per_m:0.09, max_pipe_length_m:150, max_equivalent_length_m:175, max_indoor_units:16},
+    {reference:"DVM S2 33.5kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:33.5, heating_power_kw:37.4, factory_charge_kg:14.2, additional_charge_kg_per_m:0.1, max_pipe_length_m:175, max_equivalent_length_m:200, max_indoor_units:24},
+    {reference:"WindFree 2.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:2.5, heating_power_kw:2.8, factory_charge_kg:0.7, additional_charge_kg_per_m:0.02, max_pipe_length_m:15, max_equivalent_length_m:20, max_indoor_units:1},
+    {reference:"WindFree 3.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:3.5, heating_power_kw:4, factory_charge_kg:0.98, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+    {reference:"WindFree 5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:5, heating_power_kw:5.7, factory_charge_kg:1.4, additional_charge_kg_per_m:0.025, max_pipe_length_m:25, max_equivalent_length_m:30, max_indoor_units:1},
+    {reference:"WindFree Multi 6kW (3 zones)", system_type:"Multi-split", fluid_code:"R32", cooling_power_kw:6, heating_power_kw:6.7, factory_charge_kg:1.8, additional_charge_kg_per_m:0.03, max_pipe_length_m:30, max_equivalent_length_m:35, max_indoor_units:3},
   ],
-  'LG': [
-    {reference:'Multi V 5 ARUN220', system_type:'DRV', fluid_code:'R410A', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:9.2, additional_charge_kg_per_m:0.09, max_pipe_length_m:150, max_equivalent_length_m:175, max_indoor_units:16},
+  "LG": [
+    {reference:"Multi V 5 8kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:8, heating_power_kw:8.9, factory_charge_kg:3.3, additional_charge_kg_per_m:0.055, max_pipe_length_m:90, max_equivalent_length_m:115, max_indoor_units:6},
+    {reference:"Multi V 5 14kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:14, heating_power_kw:15.6, factory_charge_kg:5.8, additional_charge_kg_per_m:0.07, max_pipe_length_m:120, max_equivalent_length_m:145, max_indoor_units:10},
+    {reference:"Multi V 5 22.4kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:22.4, heating_power_kw:25, factory_charge_kg:9.2, additional_charge_kg_per_m:0.09, max_pipe_length_m:150, max_equivalent_length_m:175, max_indoor_units:16},
+    {reference:"Multi V 5 33.5kW", system_type:"DRV", fluid_code:"R410A", cooling_power_kw:33.5, heating_power_kw:37.4, factory_charge_kg:13.8, additional_charge_kg_per_m:0.1, max_pipe_length_m:175, max_equivalent_length_m:200, max_indoor_units:24},
+    {reference:"Artcool 2.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:2.5, heating_power_kw:2.8, factory_charge_kg:0.7, additional_charge_kg_per_m:0.02, max_pipe_length_m:15, max_equivalent_length_m:20, max_indoor_units:1},
+    {reference:"Artcool 3.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:3.5, heating_power_kw:4, factory_charge_kg:0.98, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+    {reference:"Artcool 5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:5, heating_power_kw:5.7, factory_charge_kg:1.4, additional_charge_kg_per_m:0.025, max_pipe_length_m:25, max_equivalent_length_m:30, max_indoor_units:1},
+    {reference:"Artcool Multi 6kW (3 zones)", system_type:"Multi-split", fluid_code:"R32", cooling_power_kw:6, heating_power_kw:6.7, factory_charge_kg:1.8, additional_charge_kg_per_m:0.03, max_pipe_length_m:30, max_equivalent_length_m:35, max_indoor_units:3},
   ],
-  'Panasonic': [
-    {reference:'PACi Elite / ECOi', system_type:'DRV', fluid_code:'R32', cooling_power_kw:22.4, heating_power_kw:25.0, factory_charge_kg:8.1, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+  "Panasonic": [
+    {reference:"PACi / ECOi 8kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:8, heating_power_kw:8.9, factory_charge_kg:2.9, additional_charge_kg_per_m:0.05, max_pipe_length_m:100, max_equivalent_length_m:125, max_indoor_units:6},
+    {reference:"PACi / ECOi 14kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:14, heating_power_kw:15.6, factory_charge_kg:5.1, additional_charge_kg_per_m:0.065, max_pipe_length_m:130, max_equivalent_length_m:155, max_indoor_units:10},
+    {reference:"PACi / ECOi 22.4kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:22.4, heating_power_kw:25, factory_charge_kg:8.1, additional_charge_kg_per_m:0.075, max_pipe_length_m:165, max_equivalent_length_m:190, max_indoor_units:16},
+    {reference:"PACi / ECOi 33.5kW", system_type:"DRV", fluid_code:"R32", cooling_power_kw:33.5, heating_power_kw:37.4, factory_charge_kg:12.1, additional_charge_kg_per_m:0.09, max_pipe_length_m:190, max_equivalent_length_m:215, max_indoor_units:24},
+    {reference:"Etherea 2.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:2.5, heating_power_kw:2.8, factory_charge_kg:0.7, additional_charge_kg_per_m:0.02, max_pipe_length_m:15, max_equivalent_length_m:20, max_indoor_units:1},
+    {reference:"Etherea 3.5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:3.5, heating_power_kw:4, factory_charge_kg:0.98, additional_charge_kg_per_m:0.02, max_pipe_length_m:20, max_equivalent_length_m:25, max_indoor_units:1},
+    {reference:"Etherea 5kW", system_type:"Split", fluid_code:"R32", cooling_power_kw:5, heating_power_kw:5.7, factory_charge_kg:1.4, additional_charge_kg_per_m:0.025, max_pipe_length_m:25, max_equivalent_length_m:30, max_indoor_units:1},
+    {reference:"Etherea Multi 6kW (3 zones)", system_type:"Multi-split", fluid_code:"R32", cooling_power_kw:6, heating_power_kw:6.7, factory_charge_kg:1.8, additional_charge_kg_per_m:0.03, max_pipe_length_m:30, max_equivalent_length_m:35, max_indoor_units:3},
   ],
 };
 
@@ -781,6 +838,33 @@ App.init = function(){
   this.renderEquipmentList();
   this.renderSettingsPage();
   this.wireLiveHints();
+  this.fillEquipmentSelect(document.getElementById('qc-equipment'));
+};
+
+/** Remplit un <select> d'équipements groupés par constructeur (optgroup). */
+App.fillEquipmentSelect = function(selectEl, filterFn){
+  if (!selectEl) return;
+  const placeholder = selectEl.querySelector('option[value=""]');
+  selectEl.innerHTML = '';
+  if (placeholder) selectEl.appendChild(placeholder);
+  else {
+    const opt = document.createElement('option');
+    opt.value = ''; opt.textContent = '— Aucun —';
+    selectEl.appendChild(opt);
+  }
+  for (const mfr of MANUFACTURERS){
+    const items = DB.equipment.filter(e => e.manufacturer === mfr && (!filterFn || filterFn(e)));
+    if (!items.length) continue;
+    const group = document.createElement('optgroup');
+    group.label = mfr;
+    items.forEach(e => {
+      const opt = document.createElement('option');
+      opt.value = e.id;
+      opt.textContent = `${e.reference} — ${e.system_type}, ${e.fluid_code}, ${e.cooling_power_kw} kW (${e.factory_charge_kg} kg usine)`;
+      group.appendChild(opt);
+    });
+    selectEl.appendChild(group);
+  }
 };
 
 App.wireNav = function(){
@@ -862,6 +946,23 @@ App.wireLiveHints = function(){
   document.getElementById('qc-system-type').addEventListener('change', toggleMount);
   toggleMount();
 
+  document.getElementById('qc-equipment').addEventListener('change', (e) => {
+    const fluidSel = document.getElementById('qc-fluid');
+    const sysSel = document.getElementById('qc-system-type');
+    const hint = document.getElementById('qc-equipment-hint');
+    if (!e.target.value){
+      fluidSel.disabled = false; sysSel.disabled = false; hint.textContent = '';
+      toggleMount();
+      return;
+    }
+    const equip = DB.equipment.find(x => String(x.id) === e.target.value);
+    if (!equip) return;
+    fluidSel.value = equip.fluid_code; fluidSel.disabled = true;
+    sysSel.value = equip.system_type; sysSel.disabled = true;
+    hint.textContent = 'La charge sera présaisie depuis cet équipement (fluide et système verrouillés en conséquence).';
+    toggleMount();
+  });
+
   const toggleMountCirc = () => {
     const firstFluidCode = document.querySelector('#circ-list .circuit-fluid')?.value;
     const fluid = firstFluidCode ? getFluid(firstFluidCode) : null;
@@ -912,8 +1013,6 @@ App.selectProject = function(id){ DB.currentProjectId = id; saveDB(); this.rende
 App.runQuickCalc = function(){
   const errBox = document.getElementById('qc-error'); errBox.innerHTML = '';
   try{
-    const fluidCode = document.getElementById('qc-fluid').value;
-    const fluid = getFluid(fluidCode);
     const buildingType = document.getElementById('qc-building-type').value;
     const surface = parseFloat(document.getElementById('qc-surface').value);
     const height = parseFloat(document.getElementById('qc-height').value);
@@ -925,11 +1024,31 @@ App.runQuickCalc = function(){
     const mountingField = document.getElementById('qc-mounting-field');
     const mountingType = !mountingField.classList.contains('hidden') ? document.getElementById('qc-mounting').value : null;
     const isBasement = document.getElementById('qc-basement').checked;
+    const equipmentId = document.getElementById('qc-equipment').value;
+    const selectedEquipment = equipmentId ? DB.equipment.find(x => String(x.id) === equipmentId) : null;
+
+    const fluidCode = selectedEquipment ? selectedEquipment.fluid_code : document.getElementById('qc-fluid').value;
+    const fluid = getFluid(fluidCode);
 
     const loads = estimateLoads(surface, buildingType, climate);
-    const coolingPower = parseFloat(document.getElementById('qc-cooling-power').value) || loads.cooling_power_kw;
-    if (!systemType) systemType = suggestSystemType(coolingPower, indoorUnits);
-    const chargeEstimate = estimateProbableCharge(systemType, coolingPower, fluidCode, indoorUnits);
+    let coolingPower = parseFloat(document.getElementById('qc-cooling-power').value) || loads.cooling_power_kw;
+
+    let chargeEstimate;
+    if (selectedEquipment){
+      systemType = selectedEquipment.system_type;
+      coolingPower = selectedEquipment.cooling_power_kw;
+      const pipeLength = Math.max(indoorUnits, 1) * 5;
+      const additionalCharge = round(selectedEquipment.additional_charge_kg_per_m * pipeLength, 2);
+      const totalCharge = round(selectedEquipment.factory_charge_kg + additionalCharge, 2);
+      chargeEstimate = {
+        factory_charge_kg: selectedEquipment.factory_charge_kg, additional_charge_kg: additionalCharge,
+        total_charge_kg: totalCharge, charge_per_indoor_unit_kg: round(totalCharge / Math.max(indoorUnits, 1), 3),
+        estimated_pipe_length_m: pipeLength, fluid_code: fluidCode, equipment_reference: selectedEquipment.reference,
+      };
+    } else {
+      if (!systemType) systemType = suggestSystemType(coolingPower, indoorUnits);
+      chargeEstimate = estimateProbableCharge(systemType, coolingPower, fluidCode, indoorUnits);
+    }
 
     const result = computeConcentration(fluid, chargeEstimate.total_charge_kg, surface, height, systemType, mountingType, isBasement);
     const recs = recommend(fluid.safety_group, result.conformity, result.margin_ratio, roomType);
@@ -963,7 +1082,8 @@ App.renderQuickCalcResult = function(r){
         <table><tbody>
           <tr><td>Système proposé</td><td class="num"><span class="chip">${escapeHtml(r.suggested_system_type)}</span></td></tr>
           <tr><td>Besoin froid / chaud</td><td class="num">${r.loads.cooling_power_kw} kW / ${r.loads.heating_power_kw} kW</td></tr>
-          <tr><td>Charge probable estimée</td><td class="num">${r.charge_estimate.total_charge_kg} kg</td></tr>
+          ${r.charge_estimate.equipment_reference ? `<tr><td>Équipement sélectionné</td><td class="num"><span class="chip">${escapeHtml(r.charge_estimate.equipment_reference)}</span></td></tr>` : ''}
+          <tr><td>${r.charge_estimate.equipment_reference ? 'Charge (fiche équipement)' : 'Charge probable estimée'}</td><td class="num">${r.charge_estimate.total_charge_kg} kg</td></tr>
           <tr><td>Charge / unité intérieure</td><td class="num">${r.charge_estimate.charge_per_indoor_unit_kg} kg</td></tr>
           <tr><td>Volume du local</td><td class="num">${c.volume_m3} m³</td></tr>
           <tr><td>Concentration calculée</td><td class="num">${c.concentration_kg_m3} kg/m³</td></tr>
@@ -1046,8 +1166,9 @@ App.renderCircuits = function(){
         <button class="btn-icon" ${this.circuits.length===1?'disabled':''} onclick="App.removeCircuit('${c.id}')">🗑️</button></div>
       <div class="grid cols-2" style="gap:10px;margin-top:8px;">
         <div class="field" style="margin-bottom:0;"><label>Nom</label><input type="text" value="${escapeHtml(c.name)}" oninput="App.updateCircuit('${c.id}','name',this.value)"></div>
-        <div class="field" style="margin-bottom:0;"><label>Fluide</label><select class="fluid-select circuit-fluid" onchange="App.updateCircuit('${c.id}','fluid_code',this.value); App._toggleMountCirc && App._toggleMountCirc();"></select></div>
-        <div class="field" style="margin-bottom:0;"><label>Charge usine (kg)</label><input type="number" value="${c.factory_charge_kg}" oninput="App.updateCircuit('${c.id}','factory_charge_kg',parseFloat(this.value)||0)"></div>
+        <div class="field" style="margin-bottom:0;"><label>Équipement (optionnel — présaisie)</label><select class="circuit-equipment" onchange="App.selectCircuitEquipment('${c.id}',this.value)"></select></div>
+        <div class="field" style="margin-bottom:0;"><label>Fluide</label><select class="fluid-select circuit-fluid" ${c.equipment_id?'disabled':''} onchange="App.updateCircuit('${c.id}','fluid_code',this.value); App._toggleMountCirc && App._toggleMountCirc();"></select></div>
+        <div class="field" style="margin-bottom:0;"><label>Charge usine (kg)</label><input type="number" ${c.equipment_id?'disabled':''} value="${c.factory_charge_kg}" oninput="App.updateCircuit('${c.id}','factory_charge_kg',parseFloat(this.value)||0)"></div>
         <div class="field" style="margin-bottom:0;"><label>Longueur réseau (m)</label><input type="number" value="${c.pipe_length_m}" oninput="App.updateCircuit('${c.id}','pipe_length_m',parseFloat(this.value)||0)"></div>
         <div class="field" style="margin-bottom:0;"><label>Longueur équivalente (m)</label><input type="number" value="${c.equivalent_length_m??''}" oninput="App.updateCircuit('${c.id}','equivalent_length_m',this.value?parseFloat(this.value):null)"></div>
         <div class="field" style="margin-bottom:0;"><label>Charge compl. (kg/m)</label><input type="number" value="${c.additional_charge_kg_per_m}" oninput="App.updateCircuit('${c.id}','additional_charge_kg_per_m',parseFloat(this.value)||0)"></div>
@@ -1058,6 +1179,21 @@ App.renderCircuits = function(){
     </div>`).join('');
   this.renderFluidSelectors();
   document.querySelectorAll('.circuit-fluid').forEach((sel,i) => { sel.value = this.circuits[i].fluid_code; });
+  document.querySelectorAll('.circuit-equipment').forEach((sel,i) => {
+    this.fillEquipmentSelect(sel);
+    sel.value = this.circuits[i].equipment_id ?? '';
+  });
+};
+App.selectCircuitEquipment = function(id, equipmentId){
+  if (!equipmentId){ this.updateCircuit(id, 'equipment_id', undefined); this.renderCircuits(); return; }
+  const equip = DB.equipment.find(x => String(x.id) === equipmentId);
+  if (!equip) return;
+  const c = this.circuits.find(c=>c.id===id);
+  if (!c) return;
+  Object.assign(c, { equipment_id: equip.id, fluid_code: equip.fluid_code,
+    factory_charge_kg: equip.factory_charge_kg, additional_charge_kg_per_m: equip.additional_charge_kg_per_m });
+  this.renderCircuits();
+  App._toggleMountCirc && App._toggleMountCirc();
 };
 App.updateCircuit = function(id, field, value){ const c = this.circuits.find(c=>c.id===id); if (c) c[field]=value; };
 
