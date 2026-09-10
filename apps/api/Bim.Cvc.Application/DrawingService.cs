@@ -42,4 +42,35 @@ public sealed class DrawingService(
         repository.Add(drawing);
         return drawing;
     }
+
+    /// <summary>
+    /// Module 2 — fixe l'échelle réelle d'un plan à partir de deux points
+    /// cliqués sur une cote connue.
+    /// </summary>
+    public Drawing Calibrate(
+        Guid drawingId,
+        int pageNumber,
+        CalibrationPoint pointA,
+        CalibrationPoint pointB,
+        double realDistanceMeters)
+    {
+        var drawing = repository.Get(drawingId) ?? throw new DrawingNotFoundException(drawingId);
+
+        if (pageNumber < 1 || pageNumber > drawing.NbPages)
+        {
+            throw new InvalidDrawingException(
+                $"La page {pageNumber} n'existe pas dans ce plan ({drawing.NbPages} page(s)).");
+        }
+
+        try
+        {
+            drawing.Calibration = Calibration.Create(pageNumber, pointA, pointB, realDistanceMeters);
+        }
+        catch (Exception ex) when (ex is ArgumentException or ArgumentOutOfRangeException)
+        {
+            throw new InvalidDrawingException(ex.Message);
+        }
+
+        return drawing;
+    }
 }

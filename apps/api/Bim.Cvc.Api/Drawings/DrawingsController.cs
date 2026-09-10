@@ -34,6 +34,33 @@ public sealed class DrawingsController(DrawingService drawingService, IDrawingFi
     }
 
     /// <summary>
+    /// Module 2 — fixe l'échelle réelle du plan à partir de deux points et
+    /// d'une distance connue.
+    /// </summary>
+    [HttpPut("{id:guid}/calibration")]
+    public ActionResult<DrawingDto> Calibrate(Guid id, CalibrateDrawingRequest request)
+    {
+        try
+        {
+            var drawing = drawingService.Calibrate(
+                id,
+                request.PageNumber,
+                request.PointA.ToDomain(),
+                request.PointB.ToDomain(),
+                request.RealDistanceMeters);
+            return Ok(DrawingDto.From(drawing, Request));
+        }
+        catch (DrawingNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (InvalidDrawingException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>
     /// Sert le contenu binaire d'un plan précédemment importé, pour
     /// réaffichage côté client (fond de plan).
     /// </summary>
