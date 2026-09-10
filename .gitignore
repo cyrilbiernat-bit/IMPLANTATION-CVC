@@ -1,0 +1,18 @@
+# Node / Next.js (apps/web)
+node_modules/
+.next/
+next-env.d.ts
+npm-debug.log*
+
+# .NET (apps/api)
+bin/
+obj/
+*.user
+apps/api/**/.storage/
+
+# Environnement
+.env
+.env.local
+
+# OS / éditeurs
+.DS_Store

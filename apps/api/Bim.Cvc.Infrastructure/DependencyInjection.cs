@@ -1,0 +1,20 @@
+using Bim.Cvc.Application;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Bim.Cvc.Infrastructure;
+
+public static class DependencyInjection
+{
+    public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<LocalStorageOptions>(configuration.GetSection("LocalStorage"));
+
+        services.AddSingleton<IDrawingRepository, InMemoryDrawingRepository>();
+        services.AddSingleton<IDrawingFileStore, LocalDiskDrawingFileStore>();
+        services.AddSingleton<IPdfPageCounter, PdfSharpPageCounter>();
+        services.AddScoped<DrawingService>();
+
+        return services;
+    }
+}
