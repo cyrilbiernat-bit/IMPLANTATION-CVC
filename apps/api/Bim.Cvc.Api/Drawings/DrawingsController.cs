@@ -5,7 +5,11 @@ namespace Bim.Cvc.Api.Drawings;
 
 [ApiController]
 [Route("api/v1/drawings")]
-public sealed class DrawingsController(DrawingService drawingService, IDrawingFileStore fileStore, IDrawingRepository repository) : ControllerBase
+public sealed class DrawingsController(
+    DrawingService drawingService,
+    IDrawingFileStore fileStore,
+    IDrawingRepository repository,
+    LayerService layerService) : ControllerBase
 {
     private const long MaxRequestBodySizeBytes = 100 * 1024 * 1024;
 
@@ -25,6 +29,7 @@ public sealed class DrawingsController(DrawingService drawingService, IDrawingFi
         {
             await using var stream = file.OpenReadStream();
             var drawing = await drawingService.ImportAsync(file.FileName, stream, ct);
+            layerService.CreateDefault(drawing.Id);
             return CreatedAtAction(nameof(GetFile), new { id = drawing.Id }, DrawingDto.From(drawing, Request));
         }
         catch (InvalidDrawingException ex)

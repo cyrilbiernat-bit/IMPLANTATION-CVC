@@ -5,21 +5,32 @@ namespace Bim.Cvc.Application;
 /// <summary>
 /// Module 3 — pose des gaines et des accessoires/terminaux/équipements sur
 /// un plan déjà importé, avec accrochage automatique aux objets voisins
-/// ("connexion intelligente").
+/// ("connexion intelligente") et respect du verrouillage des calques.
 /// </summary>
-public sealed class CvcObjectService(IDrawingRepository drawings, ICvcObjectRepository objects)
+public sealed class CvcObjectService(IDrawingRepository drawings, ICvcObjectRepository objects, LayerService layerService)
 {
     /// <summary>Deux points de dessin à moins de 15 cm réels l'un de l'autre sont considérés connectés.</summary>
     private const double ConnectionToleranceMeters = 0.15;
 
+    // Hypothèses de calcul du poids (module 4) — tôle acier galvanisé,
+    // épaisseur usuelle pour une gaine basse pression. Une vraie sélection
+    // par abaque (norme/DTU) est hors périmètre du MVP ; ce calcul reste
+    // une estimation géométrique, pas un dimensionnement.
+    private const double SheetThicknessM = 0.0006;
+    private const double SteelDensityKgPerM3 = 7850;
+
     public CvcObject AddDuct(
         Guid drawingId,
+        Guid layerId,
         CvcObjectType type,
         Point2D start,
         Point2D end,
         double? widthMm,
         double? heightMm,
-        double? diameterMm)
+        double? diameterMm,
+        double? debitM3h = null,
+        double? vitesseMs = null,
+        double? pressionPa = null)
     {
         if (!CvcObject.IsDuct(type))
         {
@@ -27,6 +38,7 @@ public sealed class CvcObjectService(IDrawingRepository drawings, ICvcObjectRepo
         }
 
         var drawing = drawings.Get(drawingId) ?? throw new DrawingNotFoundException(drawingId);
+        var layer = layerService.RequireUnlockedLayer(drawingId, layerId);
 
         if (Distance(start, end) < 1e-6)
         {
@@ -48,12 +60,16 @@ public sealed class CvcObjectService(IDrawingRepository drawings, ICvcObjectRepo
         var duct = new CvcObject
         {
             DrawingId = drawingId,
+            LayerId = layer.Id,
             Type = type,
             Start = start,
             End = end,
             WidthMm = type == CvcObjectType.GaineRectangulaire ? widthMm : null,
             HeightMm = type == CvcObjectType.GaineRectangulaire ? heightMm : null,
             DiameterMm = type == CvcObjectType.GaineCirculaire ? diameterMm : null,
+            DebitM3h = debitM3h,
+            VitesseMs = vitesseMs,
+            PressionPa = pressionPa,
         };
 
         Connect(duct, drawing, objects.GetByDrawing(drawingId));
@@ -61,7 +77,15 @@ public sealed class CvcObjectService(IDrawingRepository drawings, ICvcObjectRepo
         return duct;
     }
 
-    public CvcObject AddPointObject(Guid drawingId, CvcObjectType type, Point2D position, double rotationRad)
+    public CvcObject AddPointObject(
+        Guid drawingId,
+        Guid layerId,
+        CvcObjectType type,
+        Point2D position,
+        double rotationRad,
+        double? debitM3h = null,
+        double? vitesseMs = null,
+        double? pressionPa = null)
     {
         if (CvcObject.IsDuct(type))
         {
@@ -69,13 +93,18 @@ public sealed class CvcObjectService(IDrawingRepository drawings, ICvcObjectRepo
         }
 
         var drawing = drawings.Get(drawingId) ?? throw new DrawingNotFoundException(drawingId);
+        var layer = layerService.RequireUnlockedLayer(drawingId, layerId);
 
         var obj = new CvcObject
         {
             DrawingId = drawingId,
+            LayerId = layer.Id,
             Type = type,
             Position = position,
             RotationRad = rotationRad,
+            DebitM3h = debitM3h,
+            VitesseMs = vitesseMs,
+            PressionPa = pressionPa,
         };
 
         Connect(obj, drawing, objects.GetByDrawing(drawingId));
@@ -98,6 +127,28 @@ public sealed class CvcObjectService(IDrawingRepository drawings, ICvcObjectRepo
         return Distance(duct.Start, duct.End) * drawing.Calibration.MetersPerPixel;
     }
 
+    /// <summary>Surface développée à calorifuger (module 4/6) — périmètre × longueur réelle. Null si non calibré.</summary>
+    public double? InsulationAreaM2(CvcObject duct)
+    {
+        var length = LengthMeters(duct);
+        var perimeter = PerimeterMeters(duct);
+        return length is null || perimeter is null ? null : length * perimeter;
+    }
+
+    /// <summary>Poids estimé de la gaine (module 4/6), tôle galvanisée à épaisseur usuelle. Null si non calibré.</summary>
+    public double? WeightKg(CvcObject duct)
+    {
+        var area = InsulationAreaM2(duct);
+        return area is null ? null : area * SheetThicknessM * SteelDensityKgPerM3;
+    }
+
+    private static double? PerimeterMeters(CvcObject duct) => duct.Type switch
+    {
+        CvcObjectType.GaineRectangulaire when duct.WidthMm is { } w && duct.HeightMm is { } h => 2 * (w + h) / 1000,
+        CvcObjectType.GaineCirculaire when duct.DiameterMm is { } d => Math.PI * d / 1000,
+        _ => null,
+    };
+
     public void Remove(Guid drawingId, Guid objectId)
     {
         _ = drawings.Get(drawingId) ?? throw new DrawingNotFoundException(drawingId);
@@ -105,6 +156,10 @@ public sealed class CvcObjectService(IDrawingRepository drawings, ICvcObjectRepo
         if (existing is null || existing.DrawingId != drawingId)
         {
             throw new InvalidCvcObjectException("Objet introuvable sur ce plan.");
+        }
+        if (layerService.IsLocked(existing.LayerId))
+        {
+            throw new InvalidCvcObjectException("Cet objet est sur un calque verrouillé.");
         }
 
         objects.Remove(objectId);

@@ -5,15 +5,20 @@ import type { PageViewport, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
   calibrateDrawing,
   createCvcObject,
+  createLayer,
   deleteCvcObject,
+  deleteLayer,
   fetchCvcObjects,
   fetchDrawingEntities,
+  fetchLayers,
+  updateLayer,
   uploadDrawing,
   type CalibrationDto,
   type CreateDuctInput,
   type CreatePointObjectInput,
   type CvcObjectDto,
   type CvcObjectType,
+  type LayerDto,
   type PlanEntityDto,
 } from "@/lib/api-client";
 
@@ -209,10 +214,19 @@ export function PlanViewer() {
   const [ductWidthInput, setDuctWidthInput] = useState("400");
   const [ductHeightInput, setDuctHeightInput] = useState("250");
   const [ductDiameterInput, setDuctDiameterInput] = useState("315");
+  const [ductDebitInput, setDuctDebitInput] = useState("");
+  const [ductVitesseInput, setDuctVitesseInput] = useState("");
+  const [ductPressionInput, setDuctPressionInput] = useState("");
   const [objectSaving, setObjectSaving] = useState(false);
   const [objectError, setObjectError] = useState<string | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [deletingObject, setDeletingObject] = useState(false);
+
+  // Calques (verrouillage + affichage indépendants des objets CVC).
+  const [cvcLayers, setCvcLayers] = useState<LayerDto[]>([]);
+  const [activeLayerId, setActiveLayerId] = useState<string | null>(null);
+  const [layersError, setLayersError] = useState<string | null>(null);
+  const [layersBusy, setLayersBusy] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -240,6 +254,9 @@ export function PlanViewer() {
     setDuctDraft({});
     setObjectError(null);
     setSelectedObjectId(null);
+    setCvcLayers([]);
+    setActiveLayerId(null);
+    setLayersError(null);
 
     if (extension in UNSUPPORTED_FORMAT_MESSAGES) {
       setFormat(null);
@@ -290,6 +307,14 @@ export function PlanViewer() {
 
       try {
         setObjects(await fetchCvcObjects(drawing.id));
+      } catch (err) {
+        console.error(err);
+      }
+
+      try {
+        const remoteLayers = await fetchLayers(drawing.id);
+        setCvcLayers(remoteLayers);
+        setActiveLayerId(remoteLayers[0]?.id ?? null);
       } catch (err) {
         console.error(err);
       }
@@ -521,12 +546,13 @@ export function PlanViewer() {
 
   const placePointObject = useCallback(
     async (type: CvcObjectType, point: DrawingPoint) => {
-      if (!drawingId) return;
+      if (!drawingId || !activeLayerId) return;
       setObjectSaving(true);
       setObjectError(null);
       try {
         const input: CreatePointObjectInput = {
           type: type as CreatePointObjectInput["type"],
+          layerId: activeLayerId,
           position: { x: point[0], y: point[1] },
         };
         const created = await createCvcObject(drawingId, input);
@@ -537,11 +563,11 @@ export function PlanViewer() {
         setObjectSaving(false);
       }
     },
-    [drawingId, addCreatedObject],
+    [drawingId, activeLayerId, addCreatedObject],
   );
 
   const submitDuct = async () => {
-    if (!drawingId || !ductDraft.start || !ductDraft.end || !activeTool) return;
+    if (!drawingId || !activeLayerId || !ductDraft.start || !ductDraft.end || !activeTool) return;
     const isRect = activeTool === "GaineRectangulaire";
 
     let widthMm: number | undefined;
@@ -563,20 +589,33 @@ export function PlanViewer() {
       }
     }
 
+    const parseOptional = (raw: string) => {
+      if (!raw.trim()) return undefined;
+      const n = Number(raw.replace(",", "."));
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    };
+
     setObjectSaving(true);
     setObjectError(null);
     try {
       const input: CreateDuctInput = {
         type: activeTool as CreateDuctInput["type"],
+        layerId: activeLayerId,
         start: { x: ductDraft.start[0], y: ductDraft.start[1] },
         end: { x: ductDraft.end[0], y: ductDraft.end[1] },
         widthMm,
         heightMm,
         diameterMm,
+        debitM3h: parseOptional(ductDebitInput),
+        vitesseMs: parseOptional(ductVitesseInput),
+        pressionPa: parseOptional(ductPressionInput),
       };
       const created = await createCvcObject(drawingId, input);
       addCreatedObject(created);
       setDuctDraft({});
+      setDuctDebitInput("");
+      setDuctVitesseInput("");
+      setDuctPressionInput("");
     } catch (err) {
       setObjectError(err instanceof Error ? err.message : "Échec de la création de la gaine.");
     } finally {
@@ -603,6 +642,59 @@ export function PlanViewer() {
     }
   };
 
+  // --- Calques -----------------------------------------------------------
+
+  const addLayer = async () => {
+    if (!drawingId) return;
+    setLayersBusy(true);
+    setLayersError(null);
+    try {
+      const layer = await createLayer(drawingId);
+      setCvcLayers((prev) => [...prev, layer]);
+      setActiveLayerId(layer.id);
+    } catch (err) {
+      setLayersError(err instanceof Error ? err.message : "Échec de la création du calque.");
+    } finally {
+      setLayersBusy(false);
+    }
+  };
+
+  const patchLayer = async (layer: LayerDto, patch: { name?: string; visible?: boolean; locked?: boolean }) => {
+    if (!drawingId) return;
+    setLayersError(null);
+    try {
+      const updated = await updateLayer(drawingId, layer.id, patch);
+      setCvcLayers((prev) => prev.map((l) => (l.id === updated.id ? updated : l)));
+    } catch (err) {
+      setLayersError(err instanceof Error ? err.message : "Échec de la mise à jour du calque.");
+    }
+  };
+
+  const removeLayer = async (layer: LayerDto) => {
+    if (!drawingId) return;
+    setLayersBusy(true);
+    setLayersError(null);
+    try {
+      await deleteLayer(drawingId, layer.id);
+      setCvcLayers((prev) => prev.filter((l) => l.id !== layer.id));
+      // Les objets du calque supprimé sont réaffectés côté serveur au premier
+      // calque restant : on recharge les objets pour refléter leur nouveau LayerId.
+      setObjects(await fetchCvcObjects(drawingId));
+      setActiveLayerId((prev) => (prev === layer.id ? (cvcLayers.find((l) => l.id !== layer.id)?.id ?? null) : prev));
+    } catch (err) {
+      setLayersError(err instanceof Error ? err.message : "Échec de la suppression du calque.");
+    } finally {
+      setLayersBusy(false);
+    }
+  };
+
+  const activeLayer = cvcLayers.find((l) => l.id === activeLayerId) ?? null;
+  const layerById = useMemo(() => new Map(cvcLayers.map((l) => [l.id, l])), [cvcLayers]);
+  const visibleObjects = useMemo(
+    () => objects.filter((o) => layerById.get(o.layerId)?.visible !== false),
+    [objects, layerById],
+  );
+
   /** Point de fond de plan cliqué : calibration, pose d'un objet CVC (avec accrochage), ou désélection. */
   const handleBackgroundPoint = useCallback(
     (rawPoint: DrawingPoint, toleranceUnits: number) => {
@@ -612,7 +704,7 @@ export function PlanViewer() {
       }
 
       if (activeTool && !objectSaving) {
-        const snapped = findSnapTarget(rawPoint, objects, toleranceUnits) ?? rawPoint;
+        const snapped = findSnapTarget(rawPoint, visibleObjects, toleranceUnits) ?? rawPoint;
         if (DUCT_TYPES.has(activeTool)) {
           setDuctDraft((prev) => (!prev.start ? { start: snapped } : { ...prev, end: snapped }));
         } else {
@@ -623,7 +715,7 @@ export function PlanViewer() {
 
       setSelectedObjectId(null);
     },
-    [calibrationMode, activeTool, objectSaving, objects, placePointObject, registerCalibrationPoint],
+    [calibrationMode, activeTool, objectSaving, visibleObjects, placePointObject, registerCalibrationPoint],
   );
 
   const onPdfBackgroundClick = (e: React.MouseEvent<SVGRectElement>) => {
@@ -684,7 +776,9 @@ export function PlanViewer() {
   const cadViewport = format !== "pdf" && bounds ? computeCadViewport(bounds, scale) : null;
   const markerSize = format === "pdf" ? 12 : bounds ? Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.02 : 100;
   const selectedObject = objects.find((o) => o.id === selectedObjectId) ?? null;
+  const selectedObjectLayer = selectedObject ? (layerById.get(selectedObject.layerId) ?? null) : null;
   const cursor = !hasContent ? "default" : isInteractiveMode ? "crosshair" : "grab";
+  const drawingToolsDisabled = !calibration || objectSaving || !activeLayerId || !!activeLayer?.locked;
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
@@ -763,9 +857,15 @@ export function PlanViewer() {
           widthInput={ductWidthInput}
           heightInput={ductHeightInput}
           diameterInput={ductDiameterInput}
+          debitInput={ductDebitInput}
+          vitesseInput={ductVitesseInput}
+          pressionInput={ductPressionInput}
           onWidthChange={setDuctWidthInput}
           onHeightChange={setDuctHeightInput}
           onDiameterChange={setDuctDiameterInput}
+          onDebitChange={setDuctDebitInput}
+          onVitesseChange={setDuctVitesseInput}
+          onPressionChange={setDuctPressionInput}
           saving={objectSaving}
           error={objectError}
           onConfirm={submitDuct}
@@ -785,7 +885,20 @@ export function PlanViewer() {
       />
 
       <div className="flex min-h-0 flex-1">
-        <ToolDock activeTool={activeTool} onSelect={startTool} disabled={!calibration || objectSaving} />
+        <ToolDock
+          activeTool={activeTool}
+          onSelect={startTool}
+          disabled={drawingToolsDisabled}
+          disabledReason={
+            !calibration
+              ? "Calibrez le plan avant de dessiner (module 2)"
+              : activeLayer?.locked
+                ? `Le calque « ${activeLayer.name} » est verrouillé`
+                : !activeLayerId
+                  ? "Créez ou sélectionnez un calque"
+                  : undefined
+          }
+        />
 
         <div
           ref={scrollRef}
@@ -857,7 +970,7 @@ export function PlanViewer() {
                       onClick={onPdfBackgroundClick}
                     />
                     <CvcObjectsLayer
-                      objects={objects}
+                      objects={visibleObjects}
                       selectedObjectId={selectedObjectId}
                       onSelect={selectObject}
                       project={pdfProject}
@@ -920,7 +1033,7 @@ export function PlanViewer() {
                     <PlanEntityShape key={i} entity={entity} />
                   ))}
                   <CvcObjectsLayer
-                    objects={objects}
+                    objects={visibleObjects}
                     selectedObjectId={selectedObjectId}
                     onSelect={selectObject}
                     project={cadProject}
@@ -954,8 +1067,29 @@ export function PlanViewer() {
           )}
         </div>
 
-        {selectedObject && (
-          <PropertiesPanel object={selectedObject} onDelete={deleteSelected} deleting={deletingObject} />
+        {hasContent && drawingId && (
+          <div className="flex w-56 flex-shrink-0 flex-col divide-y divide-slate-700 overflow-y-auto border-l border-slate-700 bg-slate-800">
+            <LayersPanel
+              layers={cvcLayers}
+              activeLayerId={activeLayerId}
+              onSelectActive={setActiveLayerId}
+              onAdd={addLayer}
+              onToggleVisible={(l) => patchLayer(l, { visible: !l.visible })}
+              onToggleLocked={(l) => patchLayer(l, { locked: !l.locked })}
+              onRename={(l, name) => patchLayer(l, { name })}
+              onRemove={removeLayer}
+              busy={layersBusy}
+              error={layersError}
+            />
+            {selectedObject && (
+              <PropertiesPanel
+                object={selectedObject}
+                layer={selectedObjectLayer}
+                onDelete={deleteSelected}
+                deleting={deletingObject}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -966,10 +1100,12 @@ function ToolDock({
   activeTool,
   onSelect,
   disabled,
+  disabledReason,
 }: {
   activeTool: CvcObjectType | null;
   onSelect: (type: CvcObjectType) => void;
   disabled: boolean;
+  disabledReason?: string;
 }) {
   return (
     <div className="flex w-16 flex-shrink-0 flex-col items-center gap-1.5 overflow-y-auto border-r border-slate-700 bg-slate-800 py-3">
@@ -980,7 +1116,7 @@ function ToolDock({
           data-testid={`tool-${tool.type}`}
           disabled={disabled}
           onClick={() => onSelect(tool.type)}
-          title={disabled ? "Calibrez le plan avant de dessiner (module 2)" : CVC_TYPE_LABELS[tool.type]}
+          title={disabled ? (disabledReason ?? "Indisponible") : CVC_TYPE_LABELS[tool.type]}
           className={`flex h-11 w-13 flex-col items-center justify-center rounded text-[9.5px] leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
             activeTool === tool.type
               ? "bg-teal-600 text-white"
@@ -997,19 +1133,24 @@ function ToolDock({
 
 function PropertiesPanel({
   object,
+  layer,
   onDelete,
   deleting,
 }: {
   object: CvcObjectDto;
+  layer: LayerDto | null;
   onDelete: () => void;
   deleting: boolean;
 }) {
   const isDuct = !!object.start && !!object.end;
+  const locked = !!layer?.locked;
 
   return (
-    <div className="flex w-52 flex-shrink-0 flex-col gap-3 overflow-y-auto border-l border-slate-700 bg-slate-800 p-3 text-xs text-slate-300">
+    <div className="flex flex-col gap-3 p-3 text-xs text-slate-300">
       <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Propriétés</div>
+      <PropertyField label="Identifiant" value={object.id.slice(0, 8)} />
       <PropertyField label="Type" value={CVC_TYPE_LABELS[object.type]} />
+      <PropertyField label="Calque" value={layer?.name ?? "—"} />
       {isDuct ? (
         <>
           <PropertyField
@@ -1021,6 +1162,8 @@ function PropertiesPanel({
             }
           />
           <PropertyField label="Longueur" value={object.lengthMeters != null ? `${object.lengthMeters.toFixed(2)} m` : "—"} />
+          <PropertyField label="Surface calorifuge" value={object.insulationAreaM2 != null ? `${object.insulationAreaM2.toFixed(2)} m²` : "—"} />
+          <PropertyField label="Poids" value={object.weightKg != null ? `${object.weightKg.toFixed(1)} kg` : "—"} />
         </>
       ) : (
         <PropertyField
@@ -1028,15 +1171,152 @@ function PropertiesPanel({
           value={object.position ? `${object.position.x.toFixed(0)}, ${object.position.y.toFixed(0)}` : "—"}
         />
       )}
+      <PropertyField label="Débit" value={object.debitM3h != null ? `${object.debitM3h} m³/h` : "—"} />
+      <PropertyField label="Vitesse" value={object.vitesseMs != null ? `${object.vitesseMs} m/s` : "—"} />
+      <PropertyField label="Pression" value={object.pressionPa != null ? `${object.pressionPa} Pa` : "—"} />
       <PropertyField label="Connexions" value={String(object.connectedObjectIds.length)} />
       <button
         type="button"
         onClick={onDelete}
-        disabled={deleting}
+        disabled={deleting || locked}
+        title={locked ? `Le calque « ${layer?.name} » est verrouillé` : undefined}
         className="mt-2 rounded border border-rose-800 bg-rose-950/40 px-2 py-1.5 font-medium text-rose-300 hover:bg-rose-950/70 disabled:opacity-50"
       >
-        {deleting ? "Suppression…" : "✕ Supprimer"}
+        {locked ? "🔒 Calque verrouillé" : deleting ? "Suppression…" : "✕ Supprimer"}
       </button>
+    </div>
+  );
+}
+
+function LayersPanel({
+  layers,
+  activeLayerId,
+  onSelectActive,
+  onAdd,
+  onToggleVisible,
+  onToggleLocked,
+  onRename,
+  onRemove,
+  busy,
+  error,
+}: {
+  layers: LayerDto[];
+  activeLayerId: string | null;
+  onSelectActive: (id: string) => void;
+  onAdd: () => void;
+  onToggleVisible: (layer: LayerDto) => void;
+  onToggleLocked: (layer: LayerDto) => void;
+  onRename: (layer: LayerDto, name: string) => void;
+  onRemove: (layer: LayerDto) => void;
+  busy: boolean;
+  error: string | null;
+}) {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+
+  const startEditing = (layer: LayerDto) => {
+    setEditingId(layer.id);
+    setEditingName(layer.name);
+  };
+
+  const commitEditing = (layer: LayerDto) => {
+    const trimmed = editingName.trim();
+    if (trimmed && trimmed !== layer.name) onRename(layer, trimmed);
+    setEditingId(null);
+  };
+
+  return (
+    <div className="flex flex-col gap-2 p-3 text-xs text-slate-300">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Calques</span>
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={busy}
+          title="Ajouter un calque"
+          className="rounded border border-slate-600 px-1.5 py-0.5 font-medium text-slate-300 hover:border-sky-500 hover:text-sky-300 disabled:opacity-40"
+        >
+          +
+        </button>
+      </div>
+      <ul className="flex flex-col gap-1">
+        {layers.map((layer) => {
+          const isActive = layer.id === activeLayerId;
+          return (
+            <li
+              key={layer.id}
+              data-testid={`layer-row-${layer.name}`}
+              onClick={() => onSelectActive(layer.id)}
+              className={`flex items-center gap-1.5 rounded border px-1.5 py-1 ${
+                isActive ? "border-teal-600 bg-teal-950/30" : "border-slate-700 hover:border-slate-600"
+              }`}
+            >
+              <button
+                type="button"
+                data-testid="layer-toggle-visible"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleVisible(layer);
+                }}
+                title={layer.visible ? "Masquer le calque" : "Afficher le calque"}
+                className="w-4 flex-shrink-0 text-slate-300 hover:text-sky-300"
+              >
+                {layer.visible ? "👁" : "—"}
+              </button>
+              <button
+                type="button"
+                data-testid="layer-toggle-locked"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleLocked(layer);
+                }}
+                title={layer.locked ? "Déverrouiller le calque" : "Verrouiller le calque"}
+                className={`w-4 flex-shrink-0 ${layer.locked ? "text-amber-400" : "text-slate-500 hover:text-amber-300"}`}
+              >
+                {layer.locked ? "🔒" : "🔓"}
+              </button>
+              {editingId === layer.id ? (
+                <input
+                  autoFocus
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  onBlur={() => commitEditing(layer)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") commitEditing(layer);
+                    if (e.key === "Escape") setEditingId(null);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="min-w-0 flex-1 rounded border border-slate-600 bg-slate-900 px-1 py-0.5 text-slate-100"
+                />
+              ) : (
+                <span
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
+                    startEditing(layer);
+                  }}
+                  className={`min-w-0 flex-1 truncate ${isActive ? "text-teal-200" : "text-slate-300"}`}
+                  title="Double-cliquer pour renommer"
+                >
+                  {layer.name}
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRemove(layer);
+                }}
+                disabled={busy || layers.length <= 1}
+                title={layers.length <= 1 ? "Impossible de supprimer le dernier calque" : "Supprimer le calque"}
+                className="flex-shrink-0 text-slate-500 hover:text-rose-400 disabled:cursor-not-allowed disabled:opacity-30"
+              >
+                ✕
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {error && <span className="text-rose-400">{error}</span>}
     </div>
   );
 }
@@ -1140,9 +1420,15 @@ function DuctDimensionsBar({
   widthInput,
   heightInput,
   diameterInput,
+  debitInput,
+  vitesseInput,
+  pressionInput,
   onWidthChange,
   onHeightChange,
   onDiameterChange,
+  onDebitChange,
+  onVitesseChange,
+  onPressionChange,
   saving,
   error,
   onConfirm,
@@ -1152,9 +1438,15 @@ function DuctDimensionsBar({
   widthInput: string;
   heightInput: string;
   diameterInput: string;
+  debitInput: string;
+  vitesseInput: string;
+  pressionInput: string;
   onWidthChange: (v: string) => void;
   onHeightChange: (v: string) => void;
   onDiameterChange: (v: string) => void;
+  onDebitChange: (v: string) => void;
+  onVitesseChange: (v: string) => void;
+  onPressionChange: (v: string) => void;
   saving: boolean;
   error: string | null;
   onConfirm: () => void;
@@ -1202,6 +1494,39 @@ function DuctDimensionsBar({
           <span className="text-xs">mm</span>
         </>
       )}
+      <span className="ml-2 text-xs text-teal-400/70">Débit</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={debitInput}
+        onChange={(e) => onDebitChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onConfirm()}
+        placeholder="facultatif"
+        className="w-20 rounded border border-teal-700 bg-slate-900 px-2 py-1 text-center font-mono text-teal-100 placeholder:text-teal-100/30"
+      />
+      <span className="text-xs">m³/h</span>
+      <span className="ml-1 text-xs text-teal-400/70">Vitesse</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={vitesseInput}
+        onChange={(e) => onVitesseChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onConfirm()}
+        placeholder="facultatif"
+        className="w-20 rounded border border-teal-700 bg-slate-900 px-2 py-1 text-center font-mono text-teal-100 placeholder:text-teal-100/30"
+      />
+      <span className="text-xs">m/s</span>
+      <span className="ml-1 text-xs text-teal-400/70">Pression</span>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={pressionInput}
+        onChange={(e) => onPressionChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onConfirm()}
+        placeholder="facultatif"
+        className="w-20 rounded border border-teal-700 bg-slate-900 px-2 py-1 text-center font-mono text-teal-100 placeholder:text-teal-100/30"
+      />
+      <span className="text-xs">Pa</span>
       <button
         type="button"
         onClick={onConfirm}

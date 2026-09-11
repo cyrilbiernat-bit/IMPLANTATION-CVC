@@ -5,7 +5,7 @@ namespace Bim.Cvc.Application.Tests;
 
 public sealed class CvcObjectServiceTests
 {
-    private static (CvcObjectService sut, FakeDrawingRepository drawings, Guid drawingId) CreateSut(bool calibrated = true)
+    private static (CvcObjectService sut, FakeLayerRepository layers, Guid drawingId, Guid layerId) CreateSut(bool calibrated = true)
     {
         var drawings = new FakeDrawingRepository();
         var drawing = new Drawing { FileName = "plan.pdf", StoragePath = "memory://x", NbPages = 1 };
@@ -16,23 +16,29 @@ public sealed class CvcObjectServiceTests
         }
         drawings.Add(drawing);
 
-        var sut = new CvcObjectService(drawings, new FakeCvcObjectRepository());
-        return (sut, drawings, drawing.Id);
+        var layers = new FakeLayerRepository();
+        var cvcObjects = new FakeCvcObjectRepository();
+        var layerService = new LayerService(drawings, layers, cvcObjects);
+        var layer = layerService.CreateDefault(drawing.Id);
+
+        var sut = new CvcObjectService(drawings, cvcObjects, layerService);
+        return (sut, layers, drawing.Id, layer.Id);
     }
 
     [Fact]
     public void AddDuct_stores_a_rectangular_duct_with_its_real_length()
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, layerId) = CreateSut();
 
         var duct = sut.AddDuct(
-            drawingId, CvcObjectType.GaineRectangulaire,
+            drawingId, layerId, CvcObjectType.GaineRectangulaire,
             new Point2D(0, 0), new Point2D(50, 0),
             widthMm: 400, heightMm: 250, diameterMm: null);
 
         Assert.Equal(400, duct.WidthMm);
         Assert.Equal(250, duct.HeightMm);
         Assert.Null(duct.DiameterMm);
+        Assert.Equal(layerId, duct.LayerId);
         // 50 px * 0,1 m/px = 5 m.
         Assert.Equal(5, sut.LengthMeters(duct)!.Value, precision: 6);
     }
@@ -40,10 +46,10 @@ public sealed class CvcObjectServiceTests
     [Fact]
     public void AddDuct_stores_a_circular_duct()
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, layerId) = CreateSut();
 
         var duct = sut.AddDuct(
-            drawingId, CvcObjectType.GaineCirculaire,
+            drawingId, layerId, CvcObjectType.GaineCirculaire,
             new Point2D(0, 0), new Point2D(20, 0),
             widthMm: null, heightMm: null, diameterMm: 315);
 
@@ -54,11 +60,25 @@ public sealed class CvcObjectServiceTests
     [Fact]
     public void LengthMeters_is_null_when_the_drawing_is_not_calibrated()
     {
-        var (sut, _, drawingId) = CreateSut(calibrated: false);
+        var (sut, _, drawingId, layerId) = CreateSut(calibrated: false);
 
-        var duct = sut.AddDuct(drawingId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(20, 0), null, null, 200);
+        var duct = sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(20, 0), null, null, 200);
 
         Assert.Null(sut.LengthMeters(duct));
+    }
+
+    [Fact]
+    public void InsulationAreaM2_and_WeightKg_are_computed_from_perimeter_and_length()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+
+        // Gaine circulaire ⌀315mm, 50 px = 5 m à cette échelle.
+        var duct = sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(50, 0), null, null, 315);
+
+        var perimeter = Math.PI * 0.315; // m
+        var expectedArea = perimeter * 5;
+        Assert.Equal(expectedArea, sut.InsulationAreaM2(duct)!.Value, precision: 4);
+        Assert.True(sut.WeightKg(duct) > 0);
     }
 
     [Theory]
@@ -66,45 +86,67 @@ public sealed class CvcObjectServiceTests
     [InlineData(400d, null)]
     public void AddDuct_rejects_a_rectangular_duct_missing_a_dimension(double? width, double? height)
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, layerId) = CreateSut();
 
         Assert.Throws<InvalidCvcObjectException>(() =>
-            sut.AddDuct(drawingId, CvcObjectType.GaineRectangulaire, new Point2D(0, 0), new Point2D(10, 0), width, height, null));
+            sut.AddDuct(drawingId, layerId, CvcObjectType.GaineRectangulaire, new Point2D(0, 0), new Point2D(10, 0), width, height, null));
     }
 
     [Fact]
     public void AddDuct_rejects_a_circular_duct_without_a_diameter()
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, layerId) = CreateSut();
 
         Assert.Throws<InvalidCvcObjectException>(() =>
-            sut.AddDuct(drawingId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(10, 0), null, null, null));
+            sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(10, 0), null, null, null));
     }
 
     [Fact]
     public void AddDuct_rejects_identical_start_and_end_points()
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, layerId) = CreateSut();
 
         Assert.Throws<InvalidCvcObjectException>(() =>
-            sut.AddDuct(drawingId, CvcObjectType.GaineCirculaire, new Point2D(5, 5), new Point2D(5, 5), null, null, 200));
+            sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(5, 5), new Point2D(5, 5), null, null, 200));
     }
 
     [Fact]
     public void AddDuct_rejects_a_non_duct_type()
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, layerId) = CreateSut();
 
         Assert.Throws<InvalidCvcObjectException>(() =>
-            sut.AddDuct(drawingId, CvcObjectType.Coude, new Point2D(0, 0), new Point2D(10, 0), null, null, 200));
+            sut.AddDuct(drawingId, layerId, CvcObjectType.Coude, new Point2D(0, 0), new Point2D(10, 0), null, null, 200));
+    }
+
+    [Fact]
+    public void AddDuct_rejects_a_locked_layer()
+    {
+        var (sut, layers, drawingId, layerId) = CreateSut();
+        layers.Get(layerId)!.Locked = true;
+
+        Assert.Throws<InvalidCvcObjectException>(() =>
+            sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(10, 0), null, null, 200));
+    }
+
+    [Fact]
+    public void AddDuct_rejects_a_layer_from_another_drawing()
+    {
+        var (sut, _, drawingId, _) = CreateSut();
+        var (_, otherLayers, otherDrawingId, otherLayerId) = CreateSut();
+        Assert.NotEqual(drawingId, otherDrawingId);
+
+        Assert.Throws<InvalidCvcObjectException>(() =>
+            sut.AddDuct(drawingId, otherLayerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(10, 0), null, null, 200));
+        _ = otherLayers; // évite un avertissement de variable inutilisée
     }
 
     [Fact]
     public void AddPointObject_stores_an_accessory_at_a_position()
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, layerId) = CreateSut();
 
-        var diffuseur = sut.AddPointObject(drawingId, CvcObjectType.Diffuseur, new Point2D(12, 34), rotationRad: 1.5);
+        var diffuseur = sut.AddPointObject(drawingId, layerId, CvcObjectType.Diffuseur, new Point2D(12, 34), rotationRad: 1.5);
 
         Assert.Equal(12, diffuseur.Position!.X);
         Assert.Equal(34, diffuseur.Position.Y);
@@ -114,31 +156,41 @@ public sealed class CvcObjectServiceTests
     [Fact]
     public void AddPointObject_rejects_a_duct_type()
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, layerId) = CreateSut();
 
         Assert.Throws<InvalidCvcObjectException>(() =>
-            sut.AddPointObject(drawingId, CvcObjectType.GaineRectangulaire, new Point2D(0, 0), 0));
+            sut.AddPointObject(drawingId, layerId, CvcObjectType.GaineRectangulaire, new Point2D(0, 0), 0));
+    }
+
+    [Fact]
+    public void AddPointObject_rejects_a_locked_layer()
+    {
+        var (sut, layers, drawingId, layerId) = CreateSut();
+        layers.Get(layerId)!.Locked = true;
+
+        Assert.Throws<InvalidCvcObjectException>(() =>
+            sut.AddPointObject(drawingId, layerId, CvcObjectType.Bouche, new Point2D(0, 0), 0));
     }
 
     [Fact]
     public void Operations_throw_when_the_drawing_does_not_exist()
     {
-        var (sut, _, _) = CreateSut();
+        var (sut, _, _, layerId) = CreateSut();
         var unknownDrawingId = Guid.NewGuid();
 
         Assert.Throws<DrawingNotFoundException>(() =>
-            sut.AddPointObject(unknownDrawingId, CvcObjectType.Bouche, new Point2D(0, 0), 0));
+            sut.AddPointObject(unknownDrawingId, layerId, CvcObjectType.Bouche, new Point2D(0, 0), 0));
         Assert.Throws<DrawingNotFoundException>(() => sut.GetByDrawing(unknownDrawingId));
     }
 
     [Fact]
     public void Placing_a_duct_endpoint_near_an_existing_accessory_connects_them_both_ways()
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, layerId) = CreateSut();
         // Tolérance 0,15 m = 1,5 px à cette échelle (0,1 m/px).
-        var diffuseur = sut.AddPointObject(drawingId, CvcObjectType.Diffuseur, new Point2D(50, 50), 0);
+        var diffuseur = sut.AddPointObject(drawingId, layerId, CvcObjectType.Diffuseur, new Point2D(50, 50), 0);
 
-        var duct = sut.AddDuct(drawingId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(50, 51), null, null, 200);
+        var duct = sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(50, 51), null, null, 200);
 
         Assert.Contains(diffuseur.Id, duct.ConnectedObjectIds);
         Assert.Contains(duct.Id, diffuseur.ConnectedObjectIds);
@@ -147,10 +199,10 @@ public sealed class CvcObjectServiceTests
     [Fact]
     public void Placing_objects_far_apart_does_not_connect_them()
     {
-        var (sut, _, drawingId) = CreateSut();
-        var diffuseur = sut.AddPointObject(drawingId, CvcObjectType.Diffuseur, new Point2D(50, 50), 0);
+        var (sut, _, drawingId, layerId) = CreateSut();
+        var diffuseur = sut.AddPointObject(drawingId, layerId, CvcObjectType.Diffuseur, new Point2D(50, 50), 0);
 
-        var duct = sut.AddDuct(drawingId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(20, 20), null, null, 200);
+        var duct = sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(20, 20), null, null, 200);
 
         Assert.DoesNotContain(diffuseur.Id, duct.ConnectedObjectIds);
         Assert.DoesNotContain(duct.Id, diffuseur.ConnectedObjectIds);
@@ -159,10 +211,10 @@ public sealed class CvcObjectServiceTests
     [Fact]
     public void Uncalibrated_drawings_skip_automatic_connection_detection()
     {
-        var (sut, _, drawingId) = CreateSut(calibrated: false);
-        var diffuseur = sut.AddPointObject(drawingId, CvcObjectType.Diffuseur, new Point2D(50, 50), 0);
+        var (sut, _, drawingId, layerId) = CreateSut(calibrated: false);
+        var diffuseur = sut.AddPointObject(drawingId, layerId, CvcObjectType.Diffuseur, new Point2D(50, 50), 0);
 
-        var duct = sut.AddDuct(drawingId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(50, 50), null, null, 200);
+        var duct = sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(50, 50), null, null, 200);
 
         Assert.Empty(duct.ConnectedObjectIds);
         Assert.Empty(diffuseur.ConnectedObjectIds);
@@ -171,9 +223,9 @@ public sealed class CvcObjectServiceTests
     [Fact]
     public void Remove_deletes_the_object_and_clears_references_to_it()
     {
-        var (sut, _, drawingId) = CreateSut();
-        var diffuseur = sut.AddPointObject(drawingId, CvcObjectType.Diffuseur, new Point2D(50, 50), 0);
-        var duct = sut.AddDuct(drawingId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(50, 51), null, null, 200);
+        var (sut, _, drawingId, layerId) = CreateSut();
+        var diffuseur = sut.AddPointObject(drawingId, layerId, CvcObjectType.Diffuseur, new Point2D(50, 50), 0);
+        var duct = sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(50, 51), null, null, 200);
         Assert.Contains(diffuseur.Id, duct.ConnectedObjectIds);
 
         sut.Remove(drawingId, diffuseur.Id);
@@ -187,9 +239,19 @@ public sealed class CvcObjectServiceTests
     [Fact]
     public void Remove_throws_for_an_object_that_does_not_belong_to_the_drawing()
     {
-        var (sut, _, drawingId) = CreateSut();
+        var (sut, _, drawingId, _) = CreateSut();
 
         Assert.Throws<InvalidCvcObjectException>(() => sut.Remove(drawingId, Guid.NewGuid()));
+    }
+
+    [Fact]
+    public void Remove_rejects_an_object_on_a_locked_layer()
+    {
+        var (sut, layers, drawingId, layerId) = CreateSut();
+        var diffuseur = sut.AddPointObject(drawingId, layerId, CvcObjectType.Diffuseur, new Point2D(0, 0), 0);
+        layers.Get(layerId)!.Locked = true;
+
+        Assert.Throws<InvalidCvcObjectException>(() => sut.Remove(drawingId, diffuseur.Id));
     }
 
     private sealed class FakeDrawingRepository : IDrawingRepository
@@ -213,5 +275,19 @@ public sealed class CvcObjectServiceTests
             _objects.Values.Where(o => o.DrawingId == drawingId).ToList();
 
         public bool Remove(Guid id) => _objects.Remove(id);
+    }
+
+    private sealed class FakeLayerRepository : ILayerRepository
+    {
+        private readonly Dictionary<Guid, Layer> _layers = [];
+
+        public void Add(Layer layer) => _layers[layer.Id] = layer;
+
+        public Layer? Get(Guid id) => _layers.GetValueOrDefault(id);
+
+        public IReadOnlyList<Layer> GetByDrawing(Guid drawingId) =>
+            _layers.Values.Where(l => l.DrawingId == drawingId).OrderBy(l => l.Order).ToList();
+
+        public bool Remove(Guid id) => _layers.Remove(id);
     }
 }

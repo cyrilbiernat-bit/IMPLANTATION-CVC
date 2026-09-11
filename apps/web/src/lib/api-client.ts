@@ -33,6 +33,16 @@ export type PlanEntityDto =
   | { type: "arc"; center: PointDto; radius: number; startAngle: number; endAngle: number }
   | { type: "text"; position: PointDto; text: string; height: number };
 
+export interface LayerDto {
+  id: string;
+  drawingId: string;
+  name: string;
+  color: string;
+  visible: boolean;
+  locked: boolean;
+  order: number;
+}
+
 export type CvcObjectType =
   | "GaineRectangulaire"
   | "GaineCirculaire"
@@ -47,6 +57,7 @@ export type CvcObjectType =
 export interface CvcObjectDto {
   id: string;
   drawingId: string;
+  layerId: string;
   type: CvcObjectType;
   start: PointDto | null;
   end: PointDto | null;
@@ -54,6 +65,11 @@ export interface CvcObjectDto {
   heightMm: number | null;
   diameterMm: number | null;
   lengthMeters: number | null;
+  weightKg: number | null;
+  insulationAreaM2: number | null;
+  debitM3h: number | null;
+  vitesseMs: number | null;
+  pressionPa: number | null;
   position: PointDto | null;
   rotationRad: number;
   connectedObjectIds: string[];
@@ -61,17 +77,25 @@ export interface CvcObjectDto {
 
 export interface CreateDuctInput {
   type: "GaineRectangulaire" | "GaineCirculaire";
+  layerId: string;
   start: PointDto;
   end: PointDto;
   widthMm?: number;
   heightMm?: number;
   diameterMm?: number;
+  debitM3h?: number;
+  vitesseMs?: number;
+  pressionPa?: number;
 }
 
 export interface CreatePointObjectInput {
   type: Exclude<CvcObjectType, "GaineRectangulaire" | "GaineCirculaire">;
+  layerId: string;
   position: PointDto;
   rotationRad?: number;
+  debitM3h?: number;
+  vitesseMs?: number;
+  pressionPa?: number;
 }
 
 async function parseErrorMessage(res: Response, fallback: string): Promise<string> {
@@ -144,6 +168,63 @@ export async function deleteCvcObject(drawingId: string, objectId: string): Prom
 
   if (!res.ok) {
     throw new Error(await parseErrorMessage(res, `Échec de la suppression (${res.status})`));
+  }
+}
+
+export async function fetchLayers(drawingId: string): Promise<LayerDto[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/layers`);
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la lecture des calques (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function createLayer(drawingId: string, name?: string): Promise<LayerDto> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/layers`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: name ?? null }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la création du calque (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function updateLayer(
+  drawingId: string,
+  layerId: string,
+  input: { name?: string; color?: string; visible?: boolean; locked?: boolean },
+): Promise<LayerDto> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/layers/${layerId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      name: input.name ?? null,
+      color: input.color ?? null,
+      visible: input.visible ?? null,
+      locked: input.locked ?? null,
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la mise à jour du calque (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function deleteLayer(drawingId: string, layerId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/layers/${layerId}`, {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la suppression du calque (${res.status})`));
   }
 }
 

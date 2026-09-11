@@ -15,7 +15,7 @@ public sealed class CvcObjectsController(CvcObjectService service) : ControllerB
         try
         {
             var items = service.GetByDrawing(drawingId);
-            return Ok(items.Select(o => CvcObjectDto.From(o, service.LengthMeters(o))).ToList());
+            return Ok(items.Select(ToDto).ToList());
         }
         catch (DrawingNotFoundException)
         {
@@ -42,12 +42,16 @@ public sealed class CvcObjectsController(CvcObjectService service) : ControllerB
                 }
                 obj = service.AddDuct(
                     drawingId,
+                    request.LayerId,
                     type,
                     new Point2D(request.Start.X, request.Start.Y),
                     new Point2D(request.End.X, request.End.Y),
                     request.WidthMm,
                     request.HeightMm,
-                    request.DiameterMm);
+                    request.DiameterMm,
+                    request.DebitM3h,
+                    request.VitesseMs,
+                    request.PressionPa);
             }
             else
             {
@@ -57,12 +61,16 @@ public sealed class CvcObjectsController(CvcObjectService service) : ControllerB
                 }
                 obj = service.AddPointObject(
                     drawingId,
+                    request.LayerId,
                     type,
                     new Point2D(request.Position.X, request.Position.Y),
-                    request.RotationRad ?? 0);
+                    request.RotationRad ?? 0,
+                    request.DebitM3h,
+                    request.VitesseMs,
+                    request.PressionPa);
             }
 
-            return CreatedAtAction(nameof(List), new { drawingId }, CvcObjectDto.From(obj, service.LengthMeters(obj)));
+            return CreatedAtAction(nameof(List), new { drawingId }, ToDto(obj));
         }
         catch (DrawingNotFoundException)
         {
@@ -86,9 +94,12 @@ public sealed class CvcObjectsController(CvcObjectService service) : ControllerB
         {
             return NotFound();
         }
-        catch (InvalidCvcObjectException)
+        catch (InvalidCvcObjectException ex)
         {
-            return NotFound();
+            return BadRequest(new { message = ex.Message });
         }
     }
+
+    private CvcObjectDto ToDto(CvcObject obj) =>
+        CvcObjectDto.From(obj, service.LengthMeters(obj), service.WeightKg(obj), service.InsulationAreaM2(obj));
 }

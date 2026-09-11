@@ -17,6 +17,8 @@ public static class DependencyInjection
         services.AddScoped<DrawingService>();
 
         services.AddSingleton<ICvcObjectRepository, InMemoryCvcObjectRepository>();
+        services.AddSingleton<ILayerRepository, InMemoryLayerRepository>();
+        services.AddScoped<LayerService>();
         services.AddScoped<CvcObjectService>();
 
         return services;

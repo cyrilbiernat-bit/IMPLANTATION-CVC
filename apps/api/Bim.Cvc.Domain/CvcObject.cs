@@ -26,6 +26,9 @@ public sealed class CvcObject
     public required Guid DrawingId { get; init; }
     public required CvcObjectType Type { get; init; }
 
+    /// <summary>Calque propriétaire (module 3). Réassigné automatiquement si son calque est supprimé.</summary>
+    public required Guid LayerId { get; set; }
+
     // Gaines — segment entre deux points, en unités de dessin (mêmes que
     // la calibration : pixels PDF ou unités DXF/DWG selon le plan).
     public Point2D? Start { get; init; }
@@ -37,6 +40,13 @@ public sealed class CvcObject
     // Accessoires / terminaux / équipements — un point.
     public Point2D? Position { get; init; }
     public double RotationRad { get; init; }
+
+    // Module 4 — grandeurs aérauliques. Non calculées par le MVP (hors
+    // périmètre : calcul aéraulique/hydraulique) ; le champ existe pour
+    // être renseigné manuellement ou par un futur module de calcul/IA.
+    public double? DebitM3h { get; init; }
+    public double? VitesseMs { get; init; }
+    public double? PressionPa { get; init; }
 
     /// <summary>Autres objets touchant celui-ci à un point commun (accrochage) — module 3 "connexion intelligente".</summary>
     public List<Guid> ConnectedObjectIds { get; } = [];
