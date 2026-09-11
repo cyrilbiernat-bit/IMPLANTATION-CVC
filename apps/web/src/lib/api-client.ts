@@ -33,6 +33,47 @@ export type PlanEntityDto =
   | { type: "arc"; center: PointDto; radius: number; startAngle: number; endAngle: number }
   | { type: "text"; position: PointDto; text: string; height: number };
 
+export type CvcObjectType =
+  | "GaineRectangulaire"
+  | "GaineCirculaire"
+  | "Coude"
+  | "Te"
+  | "Reduction"
+  | "Bouche"
+  | "Diffuseur"
+  | "Extracteur"
+  | "Cta";
+
+export interface CvcObjectDto {
+  id: string;
+  drawingId: string;
+  type: CvcObjectType;
+  start: PointDto | null;
+  end: PointDto | null;
+  widthMm: number | null;
+  heightMm: number | null;
+  diameterMm: number | null;
+  lengthMeters: number | null;
+  position: PointDto | null;
+  rotationRad: number;
+  connectedObjectIds: string[];
+}
+
+export interface CreateDuctInput {
+  type: "GaineRectangulaire" | "GaineCirculaire";
+  start: PointDto;
+  end: PointDto;
+  widthMm?: number;
+  heightMm?: number;
+  diameterMm?: number;
+}
+
+export interface CreatePointObjectInput {
+  type: Exclude<CvcObjectType, "GaineRectangulaire" | "GaineCirculaire">;
+  position: PointDto;
+  rotationRad?: number;
+}
+
 async function parseErrorMessage(res: Response, fallback: string): Promise<string> {
   try {
     const body = await res.json();
@@ -67,6 +108,43 @@ export async function fetchDrawingEntities(drawingId: string): Promise<PlanEntit
   }
 
   return res.json();
+}
+
+export async function fetchCvcObjects(drawingId: string): Promise<CvcObjectDto[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/objects`);
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la lecture des objets (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function createCvcObject(
+  drawingId: string,
+  input: CreateDuctInput | CreatePointObjectInput,
+): Promise<CvcObjectDto> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/objects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la création de l'objet (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function deleteCvcObject(drawingId: string, objectId: string): Promise<void> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/objects/${objectId}`, {
+    method: "DELETE",
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la suppression (${res.status})`));
+  }
 }
 
 export async function calibrateDrawing(

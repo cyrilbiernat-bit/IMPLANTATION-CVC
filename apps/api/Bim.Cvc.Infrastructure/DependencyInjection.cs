@@ -16,6 +16,9 @@ public static class DependencyInjection
         services.AddSingleton<IPlanFileParser, CadPlanParser>();
         services.AddScoped<DrawingService>();
 
+        services.AddSingleton<ICvcObjectRepository, InMemoryCvcObjectRepository>();
+        services.AddScoped<CvcObjectService>();
+
         return services;
     }
 }

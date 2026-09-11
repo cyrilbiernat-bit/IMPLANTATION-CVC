@@ -4,9 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PageViewport, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
   calibrateDrawing,
+  createCvcObject,
+  deleteCvcObject,
+  fetchCvcObjects,
   fetchDrawingEntities,
   uploadDrawing,
   type CalibrationDto,
+  type CreateDuctInput,
+  type CreatePointObjectInput,
+  type CvcObjectDto,
+  type CvcObjectType,
   type PlanEntityDto,
 } from "@/lib/api-client";
 
@@ -19,6 +26,7 @@ type CalibrationMode = "idle" | "picking-a" | "picking-b" | "confirm";
 type DrawingPoint = [number, number];
 type CadFormat = "dxf" | "dwg";
 type PlanFormatState = "pdf" | CadFormat | null;
+type Project = (x: number, y: number) => DrawingPoint;
 
 interface Bounds {
   minX: number;
@@ -26,6 +34,44 @@ interface Bounds {
   maxX: number;
   maxY: number;
 }
+
+const DUCT_TYPES = new Set<CvcObjectType>(["GaineRectangulaire", "GaineCirculaire"]);
+
+const CVC_TYPE_LABELS: Record<CvcObjectType, string> = {
+  GaineRectangulaire: "Gaine rectangulaire",
+  GaineCirculaire: "Gaine circulaire",
+  Coude: "Coude",
+  Te: "Té",
+  Reduction: "Réduction",
+  Bouche: "Bouche",
+  Diffuseur: "Diffuseur",
+  Extracteur: "Extracteur",
+  Cta: "CTA",
+};
+
+const POINT_OBJECT_LABELS: Record<CvcObjectType, string> = {
+  GaineRectangulaire: "",
+  GaineCirculaire: "",
+  Coude: "CO",
+  Te: "TE",
+  Reduction: "RD",
+  Bouche: "BO",
+  Diffuseur: "DI",
+  Extracteur: "EX",
+  Cta: "CTA",
+};
+
+const TOOLS: { type: CvcObjectType; icon: string; short: string }[] = [
+  { type: "GaineRectangulaire", icon: "▭", short: "Rect." },
+  { type: "GaineCirculaire", icon: "◯", short: "Circ." },
+  { type: "Coude", icon: "∟", short: "Coude" },
+  { type: "Te", icon: "┼", short: "Té" },
+  { type: "Reduction", icon: "▷", short: "Réduc." },
+  { type: "Bouche", icon: "▣", short: "Bouche" },
+  { type: "Diffuseur", icon: "◈", short: "Diffus." },
+  { type: "Extracteur", icon: "⊘", short: "Extract." },
+  { type: "Cta", icon: "▦", short: "CTA" },
+];
 
 async function getPdfjs() {
   const pdfjsLib = await import("pdfjs-dist");
@@ -86,12 +132,41 @@ function computeCadViewport(bounds: Bounds, scale: number) {
   const naturalHeight = height + pad * 2;
   const cx = (bounds.minX + bounds.maxX) / 2;
   const cy = (bounds.minY + bounds.maxY) / 2;
+  const minX = cx - naturalWidth / 2;
+  const minY = -cy - naturalHeight / 2;
 
   return {
     renderedWidth: naturalWidth * scale,
     renderedHeight: naturalHeight * scale,
-    viewBox: `${cx - naturalWidth / 2} ${-cy - naturalHeight / 2} ${naturalWidth} ${naturalHeight}`,
+    viewBox: `${minX} ${minY} ${naturalWidth} ${naturalHeight}`,
+    minX,
+    minY,
+    naturalWidth,
+    naturalHeight,
   };
+}
+
+/** Le point de dessin existant (extrémité de gaine ou position d'accessoire) le plus proche, dans la tolérance donnée. */
+function findSnapTarget(point: DrawingPoint, objects: CvcObjectDto[], toleranceUnits: number): DrawingPoint | null {
+  let best: DrawingPoint | null = null;
+  let bestDist = toleranceUnits;
+
+  for (const obj of objects) {
+    const candidates: DrawingPoint[] = [];
+    if (obj.start) candidates.push([obj.start.x, obj.start.y]);
+    if (obj.end) candidates.push([obj.end.x, obj.end.y]);
+    if (obj.position) candidates.push([obj.position.x, obj.position.y]);
+
+    for (const c of candidates) {
+      const d = Math.hypot(c[0] - point[0], c[1] - point[1]);
+      if (d < bestDist) {
+        bestDist = d;
+        best = c;
+      }
+    }
+  }
+
+  return best;
 }
 
 export function PlanViewer() {
@@ -127,6 +202,18 @@ export function PlanViewer() {
   const [calibrationSaving, setCalibrationSaving] = useState(false);
   const [calibrationError, setCalibrationError] = useState<string | null>(null);
 
+  // Module 3 — dessin CVC.
+  const [objects, setObjects] = useState<CvcObjectDto[]>([]);
+  const [activeTool, setActiveTool] = useState<CvcObjectType | null>(null);
+  const [ductDraft, setDuctDraft] = useState<{ start?: DrawingPoint; end?: DrawingPoint }>({});
+  const [ductWidthInput, setDuctWidthInput] = useState("400");
+  const [ductHeightInput, setDuctHeightInput] = useState("250");
+  const [ductDiameterInput, setDuctDiameterInput] = useState("315");
+  const [objectSaving, setObjectSaving] = useState(false);
+  const [objectError, setObjectError] = useState<string | null>(null);
+  const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
+  const [deletingObject, setDeletingObject] = useState(false);
+
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -148,6 +235,11 @@ export function PlanViewer() {
     setEntities(null);
     setSaveStatus("idle");
     setSaveMessage(null);
+    setObjects([]);
+    setActiveTool(null);
+    setDuctDraft({});
+    setObjectError(null);
+    setSelectedObjectId(null);
 
     if (extension in UNSUPPORTED_FORMAT_MESSAGES) {
       setFormat(null);
@@ -194,6 +286,12 @@ export function PlanViewer() {
       } else {
         setSaveStatus("saved");
         setSaveMessage(`Enregistré côté serveur — ${drawing.nbPages} page(s)`);
+      }
+
+      try {
+        setObjects(await fetchCvcObjects(drawing.id));
+      } catch (err) {
+        console.error(err);
       }
     } catch (err) {
       console.error(err);
@@ -300,11 +398,13 @@ export function PlanViewer() {
   const rotate = () => setRotation((r) => (r + 90) % 360);
   const goToPage = (n: number) => setCurrentPage(Math.min(numPages, Math.max(1, n)));
 
+  const isInteractiveMode = calibrationMode !== "idle" || !!activeTool;
+
   // Pan : cliquer-glisser dans la zone de visualisation (désactivé pendant
-  // la calibration pour ne pas confondre un déplacement avec un clic de
-  // pointage).
+  // la calibration et le dessin, pour ne pas confondre un déplacement avec
+  // un clic de pointage).
   const onPanStart = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!scrollRef.current || calibrationMode !== "idle") return;
+    if (!scrollRef.current || isInteractiveMode) return;
     panState.current = {
       x: e.clientX,
       y: e.clientY,
@@ -330,6 +430,8 @@ export function PlanViewer() {
     setPickedPoints({});
     setCalibrationError(null);
     setDistanceInput("");
+    setActiveTool(null);
+    setDuctDraft({});
   };
 
   const cancelCalibration = () => {
@@ -338,40 +440,18 @@ export function PlanViewer() {
     setCalibrationError(null);
   };
 
-  const registerCalibrationPoint = (point: DrawingPoint) => {
-    if (calibrationMode === "picking-a") {
-      setPickedPoints({ a: point });
-      setCalibrationMode("picking-b");
-    } else if (calibrationMode === "picking-b") {
-      setPickedPoints((prev) => ({ ...prev, b: point }));
-      setCalibrationMode("confirm");
-    }
-  };
-
-  const onCanvasClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (calibrationMode !== "picking-a" && calibrationMode !== "picking-b") return;
-    const viewport = pdfViewport;
-    const canvas = canvasRef.current;
-    if (!viewport || !canvas) return;
-
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    registerCalibrationPoint(viewport.convertToPdfPoint(x, y) as DrawingPoint);
-  };
-
-  // Les plans vectoriels n'ont pas besoin de conversion pdf.js : un clic se
-  // convertit directement en coordonnées de dessin via la matrice courante
-  // du SVG (getScreenCTM), correcte quels que soient le zoom et la rotation.
-  const onSvgClick = (e: React.MouseEvent<SVGSVGElement>) => {
-    if (calibrationMode !== "picking-a" && calibrationMode !== "picking-b") return;
-    const svg = svgRef.current;
-    const ctm = svg?.getScreenCTM();
-    if (!ctm) return;
-
-    const local = new DOMPoint(e.clientX, e.clientY).matrixTransform(ctm.inverse());
-    registerCalibrationPoint([local.x, -local.y]);
-  };
+  const registerCalibrationPoint = useCallback(
+    (point: DrawingPoint) => {
+      if (calibrationMode === "picking-a") {
+        setPickedPoints({ a: point });
+        setCalibrationMode("picking-b");
+      } else if (calibrationMode === "picking-b") {
+        setPickedPoints((prev) => ({ ...prev, b: point }));
+        setCalibrationMode("confirm");
+      }
+    },
+    [calibrationMode],
+  );
 
   const submitCalibration = async () => {
     if (!drawingId || !pickedPoints.a || !pickedPoints.b) return;
@@ -400,31 +480,211 @@ export function PlanViewer() {
     }
   };
 
+  // --- Module 3 — Dessin CVC ------------------------------------------
+
+  const startTool = (type: CvcObjectType) => {
+    setActiveTool((prev) => (prev === type ? null : type));
+    setDuctDraft({});
+    setObjectError(null);
+    setCalibrationMode("idle");
+    setPickedPoints({});
+    setSelectedObjectId(null);
+  };
+
+  const cancelTool = () => {
+    setActiveTool(null);
+    setDuctDraft({});
+    setObjectError(null);
+  };
+
+  const selectObject = (id: string) => {
+    if (isInteractiveMode) return;
+    setSelectedObjectId(id);
+  };
+
+  /**
+   * Ajoute l'objet créé et répercute côté client les connexions mutuelles
+   * que le serveur vient d'établir — sans ça, un objet déjà affiché reste
+   * bloqué avec sa liste de connexions d'origine tant que le plan n'est
+   * pas rechargé.
+   */
+  const addCreatedObject = useCallback((created: CvcObjectDto) => {
+    setObjects((prev) => [
+      ...prev.map((o) =>
+        created.connectedObjectIds.includes(o.id) && !o.connectedObjectIds.includes(created.id)
+          ? { ...o, connectedObjectIds: [...o.connectedObjectIds, created.id] }
+          : o,
+      ),
+      created,
+    ]);
+  }, []);
+
+  const placePointObject = useCallback(
+    async (type: CvcObjectType, point: DrawingPoint) => {
+      if (!drawingId) return;
+      setObjectSaving(true);
+      setObjectError(null);
+      try {
+        const input: CreatePointObjectInput = {
+          type: type as CreatePointObjectInput["type"],
+          position: { x: point[0], y: point[1] },
+        };
+        const created = await createCvcObject(drawingId, input);
+        addCreatedObject(created);
+      } catch (err) {
+        setObjectError(err instanceof Error ? err.message : "Échec de la création de l'objet.");
+      } finally {
+        setObjectSaving(false);
+      }
+    },
+    [drawingId, addCreatedObject],
+  );
+
+  const submitDuct = async () => {
+    if (!drawingId || !ductDraft.start || !ductDraft.end || !activeTool) return;
+    const isRect = activeTool === "GaineRectangulaire";
+
+    let widthMm: number | undefined;
+    let heightMm: number | undefined;
+    let diameterMm: number | undefined;
+
+    if (isRect) {
+      widthMm = Number(ductWidthInput.replace(",", "."));
+      heightMm = Number(ductHeightInput.replace(",", "."));
+      if (!Number.isFinite(widthMm) || widthMm <= 0 || !Number.isFinite(heightMm) || heightMm <= 0) {
+        setObjectError("Largeur et hauteur doivent être des nombres positifs (mm).");
+        return;
+      }
+    } else {
+      diameterMm = Number(ductDiameterInput.replace(",", "."));
+      if (!Number.isFinite(diameterMm) || diameterMm <= 0) {
+        setObjectError("Le diamètre doit être un nombre positif (mm).");
+        return;
+      }
+    }
+
+    setObjectSaving(true);
+    setObjectError(null);
+    try {
+      const input: CreateDuctInput = {
+        type: activeTool as CreateDuctInput["type"],
+        start: { x: ductDraft.start[0], y: ductDraft.start[1] },
+        end: { x: ductDraft.end[0], y: ductDraft.end[1] },
+        widthMm,
+        heightMm,
+        diameterMm,
+      };
+      const created = await createCvcObject(drawingId, input);
+      addCreatedObject(created);
+      setDuctDraft({});
+    } catch (err) {
+      setObjectError(err instanceof Error ? err.message : "Échec de la création de la gaine.");
+    } finally {
+      setObjectSaving(false);
+    }
+  };
+
+  const deleteSelected = async () => {
+    if (!drawingId || !selectedObjectId) return;
+    setDeletingObject(true);
+    try {
+      await deleteCvcObject(drawingId, selectedObjectId);
+      const removedId = selectedObjectId;
+      setObjects((prev) =>
+        prev
+          .filter((o) => o.id !== removedId)
+          .map((o) => ({ ...o, connectedObjectIds: o.connectedObjectIds.filter((id) => id !== removedId) })),
+      );
+      setSelectedObjectId(null);
+    } catch (err) {
+      setObjectError(err instanceof Error ? err.message : "Échec de la suppression.");
+    } finally {
+      setDeletingObject(false);
+    }
+  };
+
+  /** Point de fond de plan cliqué : calibration, pose d'un objet CVC (avec accrochage), ou désélection. */
+  const handleBackgroundPoint = useCallback(
+    (rawPoint: DrawingPoint, toleranceUnits: number) => {
+      if (calibrationMode === "picking-a" || calibrationMode === "picking-b") {
+        registerCalibrationPoint(rawPoint);
+        return;
+      }
+
+      if (activeTool && !objectSaving) {
+        const snapped = findSnapTarget(rawPoint, objects, toleranceUnits) ?? rawPoint;
+        if (DUCT_TYPES.has(activeTool)) {
+          setDuctDraft((prev) => (!prev.start ? { start: snapped } : { ...prev, end: snapped }));
+        } else {
+          void placePointObject(activeTool, snapped);
+        }
+        return;
+      }
+
+      setSelectedObjectId(null);
+    },
+    [calibrationMode, activeTool, objectSaving, objects, placePointObject, registerCalibrationPoint],
+  );
+
+  const onPdfBackgroundClick = (e: React.MouseEvent<SVGRectElement>) => {
+    const viewport = pdfViewport;
+    if (!viewport) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const toPdf = (cx: number, cy: number) => viewport.convertToPdfPoint(cx - rect.left, cy - rect.top) as DrawingPoint;
+    const p = toPdf(e.clientX, e.clientY);
+    const pTol = toPdf(e.clientX + 12, e.clientY);
+    handleBackgroundPoint(p, Math.hypot(pTol[0] - p[0], pTol[1] - p[1]));
+  };
+
+  // Les plans vectoriels n'ont pas besoin de conversion pdf.js : un clic se
+  // convertit directement en coordonnées de dessin via la matrice courante
+  // du SVG (getScreenCTM), correcte quels que soient le zoom et la rotation.
+  const onCadBackgroundClick = (e: React.MouseEvent<SVGRectElement>) => {
+    const ctm = svgRef.current?.getScreenCTM();
+    if (!ctm) return;
+    const inverse = ctm.inverse();
+    const toDrawing = (cx: number, cy: number): DrawingPoint => {
+      const local = new DOMPoint(cx, cy).matrixTransform(inverse);
+      return [local.x, -local.y];
+    };
+    const p = toDrawing(e.clientX, e.clientY);
+    const pTol = toDrawing(e.clientX + 12, e.clientY);
+    handleBackgroundPoint(p, Math.hypot(pTol[0] - p[0], pTol[1] - p[1]));
+  };
+
+  const pdfProject: Project = useCallback(
+    (x, y) => (pdfViewport ? (pdfViewport.convertToViewportPoint(x, y) as DrawingPoint) : [x, y]),
+    [pdfViewport],
+  );
+  const cadProject: Project = useCallback((x, y) => [x, -y], []);
+
   // Coordonnées canvas (dépendantes du zoom/rotation courants) des points
   // en cours de pointage et de la calibration déjà enregistrée — PDF
   // uniquement, puisque la calibration d'un plan vectoriel se dessine
   // directement dans son propre repère (voir <CalibrationOverlay flipY>).
   const pdfOverlay = useMemo(() => {
     if (format !== "pdf" || !pdfViewport) return null;
-    const toCanvas = (pt: DrawingPoint) => pdfViewport.convertToViewportPoint(pt[0], pt[1]) as DrawingPoint;
-
     return {
-      pickA: pickedPoints.a ? toCanvas(pickedPoints.a) : null,
-      pickB: pickedPoints.b ? toCanvas(pickedPoints.b) : null,
+      pickA: pickedPoints.a ? pdfProject(...pickedPoints.a) : null,
+      pickB: pickedPoints.b ? pdfProject(...pickedPoints.b) : null,
       calibA:
         calibration && calibration.pageNumber === currentPage
-          ? toCanvas([calibration.pointA.x, calibration.pointA.y])
+          ? pdfProject(calibration.pointA.x, calibration.pointA.y)
           : null,
       calibB:
         calibration && calibration.pageNumber === currentPage
-          ? toCanvas([calibration.pointB.x, calibration.pointB.y])
+          ? pdfProject(calibration.pointB.x, calibration.pointB.y)
           : null,
+      ductStart: ductDraft.start ? pdfProject(...ductDraft.start) : null,
     };
-  }, [format, pdfViewport, pickedPoints, calibration, currentPage]);
+  }, [format, pdfViewport, pickedPoints, calibration, currentPage, ductDraft, pdfProject]);
 
   const hasContent = format === "pdf" ? !!pdfDoc : format === "dxf" || format === "dwg" ? !!entities : false;
   const isProcessingCad = (format === "dxf" || format === "dwg") && !entities && saveStatus !== "error";
   const cadViewport = format !== "pdf" && bounds ? computeCadViewport(bounds, scale) : null;
+  const markerSize = format === "pdf" ? 12 : bounds ? Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.02 : 100;
+  const selectedObject = objects.find((o) => o.id === selectedObjectId) ?? null;
+  const cursor = !hasContent ? "default" : isInteractiveMode ? "crosshair" : "grab";
 
   return (
     <div className="flex h-full flex-col overflow-hidden rounded-lg border border-slate-700 bg-slate-900">
@@ -478,6 +738,44 @@ export function PlanViewer() {
         </div>
       )}
 
+      {activeTool && DUCT_TYPES.has(activeTool) && !ductDraft.end && (
+        <div className="flex items-center gap-2 border-b border-teal-800 bg-teal-950/30 px-3 py-1.5 text-xs text-teal-300">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-400" />
+          {!ductDraft.start ? "Cliquez le point de départ de la gaine." : "Cliquez le point d'arrivée."}
+          <button type="button" onClick={cancelTool} className="ml-auto text-teal-400 underline">
+            Annuler
+          </button>
+        </div>
+      )}
+      {activeTool && !DUCT_TYPES.has(activeTool) && (
+        <div className="flex items-center gap-2 border-b border-teal-800 bg-teal-950/30 px-3 py-1.5 text-xs text-teal-300">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-400" />
+          Cliquez sur le plan pour poser un{CVC_TYPE_LABELS[activeTool].match(/^[aeiouéè]/i) ? "" : "e"} {CVC_TYPE_LABELS[activeTool].toLowerCase()}.
+          {objectSaving && <span>Enregistrement…</span>}
+          <button type="button" onClick={cancelTool} className="ml-auto text-teal-400 underline">
+            Terminer
+          </button>
+        </div>
+      )}
+      {ductDraft.start && ductDraft.end && activeTool && (
+        <DuctDimensionsBar
+          isCircular={activeTool === "GaineCirculaire"}
+          widthInput={ductWidthInput}
+          heightInput={ductHeightInput}
+          diameterInput={ductDiameterInput}
+          onWidthChange={setDuctWidthInput}
+          onHeightChange={setDuctHeightInput}
+          onDiameterChange={setDuctDiameterInput}
+          saving={objectSaving}
+          error={objectError}
+          onConfirm={submitDuct}
+          onCancel={() => setDuctDraft({})}
+        />
+      )}
+      {objectError && !ductDraft.start && (
+        <div className="border-b border-rose-900 bg-rose-950/30 px-3 py-1.5 text-xs text-rose-300">{objectError}</div>
+      )}
+
       <input
         id="plan-file-input"
         type="file"
@@ -486,120 +784,436 @@ export function PlanViewer() {
         onChange={onFileInputChange}
       />
 
-      <div
-        ref={scrollRef}
-        className="relative flex-1 overflow-auto bg-slate-950"
-        onDragOver={(e) => {
-          e.preventDefault();
-          setIsDraggingFile(true);
-        }}
-        onDragLeave={() => setIsDraggingFile(false)}
-        onDrop={onDrop}
-        onMouseDown={onPanStart}
-        onMouseMove={onPanMove}
-        onMouseUp={onPanEnd}
-        onMouseLeave={onPanEnd}
-        style={{
-          cursor: !hasContent
-            ? "default"
-            : calibrationMode === "picking-a" || calibrationMode === "picking-b"
-              ? "crosshair"
-              : "grab",
-        }}
-      >
-        {!hasContent && !isProcessingCad && (
-          <button
-            type="button"
-            onClick={() => document.getElementById("plan-file-input")?.click()}
-            className={`flex h-full w-full flex-col items-center justify-center gap-3 border-2 border-dashed text-slate-400 transition-colors ${
-              isDraggingFile
-                ? "border-sky-400 bg-sky-950/30 text-sky-300"
-                : "border-slate-700 hover:border-slate-500 hover:text-slate-300"
-            }`}
-          >
-            <span className="text-4xl">⇪</span>
-            <span className="font-medium">
-              Glissez un plan (PDF, DXF, DWG) ici, ou cliquez pour l&apos;importer
-            </span>
-            <span className="text-xs text-slate-500">
-              IFC et Revit (.rvt)&nbsp;: exportez d&apos;abord en DXF ou PDF depuis votre logiciel.
-            </span>
-            {loadError && <span className="text-sm text-rose-400">{loadError}</span>}
-          </button>
-        )}
+      <div className="flex min-h-0 flex-1">
+        <ToolDock activeTool={activeTool} onSelect={startTool} disabled={!calibration || objectSaving} />
 
-        {isProcessingCad && (
-          <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-slate-400">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-sky-400" />
-            <span>Analyse du plan {format?.toUpperCase()} en cours…</span>
-          </div>
-        )}
+        <div
+          ref={scrollRef}
+          className="relative flex-1 overflow-auto bg-slate-950"
+          onDragOver={(e) => {
+            e.preventDefault();
+            setIsDraggingFile(true);
+          }}
+          onDragLeave={() => setIsDraggingFile(false)}
+          onDrop={onDrop}
+          onMouseDown={onPanStart}
+          onMouseMove={onPanMove}
+          onMouseUp={onPanEnd}
+          onMouseLeave={onPanEnd}
+          style={{ cursor }}
+        >
+          {!hasContent && !isProcessingCad && (
+            <button
+              type="button"
+              onClick={() => document.getElementById("plan-file-input")?.click()}
+              className={`flex h-full w-full flex-col items-center justify-center gap-3 border-2 border-dashed text-slate-400 transition-colors ${
+                isDraggingFile
+                  ? "border-sky-400 bg-sky-950/30 text-sky-300"
+                  : "border-slate-700 hover:border-slate-500 hover:text-slate-300"
+              }`}
+            >
+              <span className="text-4xl">⇪</span>
+              <span className="font-medium">
+                Glissez un plan (PDF, DXF, DWG) ici, ou cliquez pour l&apos;importer
+              </span>
+              <span className="text-xs text-slate-500">
+                IFC et Revit (.rvt)&nbsp;: exportez d&apos;abord en DXF ou PDF depuis votre logiciel.
+              </span>
+              {loadError && <span className="text-sm text-rose-400">{loadError}</span>}
+            </button>
+          )}
 
-        {format === "pdf" && pdfDoc && (
-          <div className="flex min-h-full min-w-full items-center justify-center p-6">
-            <div className="relative" style={{ lineHeight: 0 }}>
-              <canvas
-                ref={canvasRef}
-                onClick={onCanvasClick}
-                className="bg-white shadow-xl"
-                style={{
-                  opacity: layerVisible ? layerOpacity / 100 : 0,
-                  transition: "opacity 120ms ease",
-                }}
-              />
-              {pdfOverlay && (canvasSize.width > 0 || canvasSize.height > 0) && (
-                <svg
-                  className="pointer-events-none absolute inset-0"
-                  width={canvasSize.width}
-                  height={canvasSize.height}
-                  viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
-                >
-                  <CalibrationOverlay
-                    pickA={pdfOverlay.pickA}
-                    pickB={pdfOverlay.pickB}
-                    calibA={pdfOverlay.calibA}
-                    calibB={pdfOverlay.calibB}
-                    realDistanceMeters={calibration?.realDistanceMeters}
-                  />
-                </svg>
-              )}
+          {isProcessingCad && (
+            <div className="flex h-full w-full flex-col items-center justify-center gap-3 text-slate-400">
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-slate-600 border-t-sky-400" />
+              <span>Analyse du plan {format?.toUpperCase()} en cours…</span>
             </div>
-          </div>
-        )}
+          )}
 
-        {format !== "pdf" && entities && cadViewport && (
-          <div className="flex min-h-full min-w-full items-center justify-center p-6">
-            <div style={{ transform: rotation ? `rotate(${rotation}deg)` : undefined }}>
-              <svg
-                ref={svgRef}
-                data-testid="plan-svg"
-                onClick={onSvgClick}
-                width={cadViewport.renderedWidth}
-                height={cadViewport.renderedHeight}
-                viewBox={cadViewport.viewBox}
-                className="shadow-xl"
-                style={{
-                  background: "white",
-                  opacity: layerVisible ? layerOpacity / 100 : 0,
-                  transition: "opacity 120ms ease",
-                }}
-              >
-                {entities.map((entity, i) => (
-                  <PlanEntityShape key={i} entity={entity} />
-                ))}
-                <CalibrationOverlay
-                  flipY
-                  pickA={pickedPoints.a ?? null}
-                  pickB={pickedPoints.b ?? null}
-                  calibA={calibration ? [calibration.pointA.x, calibration.pointA.y] : null}
-                  calibB={calibration ? [calibration.pointB.x, calibration.pointB.y] : null}
-                  realDistanceMeters={calibration?.realDistanceMeters}
+          {format === "pdf" && pdfDoc && (
+            <div className="flex min-h-full min-w-full items-center justify-center p-6">
+              <div className="relative" style={{ lineHeight: 0 }}>
+                <canvas
+                  ref={canvasRef}
+                  className="bg-white shadow-xl"
+                  style={{
+                    opacity: layerVisible ? layerOpacity / 100 : 0,
+                    transition: "opacity 120ms ease",
+                  }}
                 />
-              </svg>
+                {(canvasSize.width > 0 || canvasSize.height > 0) && (
+                  <svg
+                    className="absolute inset-0"
+                    width={canvasSize.width}
+                    height={canvasSize.height}
+                    viewBox={`0 0 ${canvasSize.width} ${canvasSize.height}`}
+                  >
+                    <rect
+                      x={0}
+                      y={0}
+                      width={canvasSize.width}
+                      height={canvasSize.height}
+                      fill="transparent"
+                      onClick={onPdfBackgroundClick}
+                    />
+                    <CvcObjectsLayer
+                      objects={objects}
+                      selectedObjectId={selectedObjectId}
+                      onSelect={selectObject}
+                      project={pdfProject}
+                      markerSize={markerSize}
+                    />
+                    {pdfOverlay?.ductStart && (
+                      <circle
+                        cx={pdfOverlay.ductStart[0]}
+                        cy={pdfOverlay.ductStart[1]}
+                        r={5}
+                        fill="#0d9488"
+                        stroke="white"
+                        strokeWidth={1.5}
+                        vectorEffect="non-scaling-stroke"
+                        style={{ pointerEvents: "none" }}
+                      />
+                    )}
+                    <g style={{ pointerEvents: "none" }}>
+                      {pdfOverlay && (
+                        <CalibrationOverlay
+                          pickA={pdfOverlay.pickA}
+                          pickB={pdfOverlay.pickB}
+                          calibA={pdfOverlay.calibA}
+                          calibB={pdfOverlay.calibB}
+                          realDistanceMeters={calibration?.realDistanceMeters}
+                        />
+                      )}
+                    </g>
+                  </svg>
+                )}
+              </div>
             </div>
-          </div>
+          )}
+
+          {format !== "pdf" && entities && cadViewport && (
+            <div className="flex min-h-full min-w-full items-center justify-center p-6">
+              <div style={{ transform: rotation ? `rotate(${rotation}deg)` : undefined }}>
+                <svg
+                  ref={svgRef}
+                  data-testid="plan-svg"
+                  width={cadViewport.renderedWidth}
+                  height={cadViewport.renderedHeight}
+                  viewBox={cadViewport.viewBox}
+                  className="shadow-xl"
+                  style={{
+                    background: "white",
+                    opacity: layerVisible ? layerOpacity / 100 : 0,
+                    transition: "opacity 120ms ease",
+                  }}
+                >
+                  <rect
+                    x={cadViewport.minX}
+                    y={cadViewport.minY}
+                    width={cadViewport.naturalWidth}
+                    height={cadViewport.naturalHeight}
+                    fill="transparent"
+                    onClick={onCadBackgroundClick}
+                  />
+                  {entities.map((entity, i) => (
+                    <PlanEntityShape key={i} entity={entity} />
+                  ))}
+                  <CvcObjectsLayer
+                    objects={objects}
+                    selectedObjectId={selectedObjectId}
+                    onSelect={selectObject}
+                    project={cadProject}
+                    markerSize={markerSize}
+                  />
+                  {ductDraft.start && (
+                    <circle
+                      cx={ductDraft.start[0]}
+                      cy={-ductDraft.start[1]}
+                      r={markerSize * 0.25}
+                      fill="#0d9488"
+                      stroke="white"
+                      strokeWidth={1.5}
+                      vectorEffect="non-scaling-stroke"
+                      style={{ pointerEvents: "none" }}
+                    />
+                  )}
+                  <g style={{ pointerEvents: "none" }}>
+                    <CalibrationOverlay
+                      flipY
+                      pickA={pickedPoints.a ?? null}
+                      pickB={pickedPoints.b ?? null}
+                      calibA={calibration ? [calibration.pointA.x, calibration.pointA.y] : null}
+                      calibB={calibration ? [calibration.pointB.x, calibration.pointB.y] : null}
+                      realDistanceMeters={calibration?.realDistanceMeters}
+                    />
+                  </g>
+                </svg>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {selectedObject && (
+          <PropertiesPanel object={selectedObject} onDelete={deleteSelected} deleting={deletingObject} />
         )}
       </div>
+    </div>
+  );
+}
+
+function ToolDock({
+  activeTool,
+  onSelect,
+  disabled,
+}: {
+  activeTool: CvcObjectType | null;
+  onSelect: (type: CvcObjectType) => void;
+  disabled: boolean;
+}) {
+  return (
+    <div className="flex w-16 flex-shrink-0 flex-col items-center gap-1.5 overflow-y-auto border-r border-slate-700 bg-slate-800 py-3">
+      {TOOLS.map((tool) => (
+        <button
+          key={tool.type}
+          type="button"
+          data-testid={`tool-${tool.type}`}
+          disabled={disabled}
+          onClick={() => onSelect(tool.type)}
+          title={disabled ? "Calibrez le plan avant de dessiner (module 2)" : CVC_TYPE_LABELS[tool.type]}
+          className={`flex h-11 w-13 flex-col items-center justify-center rounded text-[9.5px] leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
+            activeTool === tool.type
+              ? "bg-teal-600 text-white"
+              : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+          }`}
+        >
+          <span className="text-base">{tool.icon}</span>
+          <span className="mt-0.5">{tool.short}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PropertiesPanel({
+  object,
+  onDelete,
+  deleting,
+}: {
+  object: CvcObjectDto;
+  onDelete: () => void;
+  deleting: boolean;
+}) {
+  const isDuct = !!object.start && !!object.end;
+
+  return (
+    <div className="flex w-52 flex-shrink-0 flex-col gap-3 overflow-y-auto border-l border-slate-700 bg-slate-800 p-3 text-xs text-slate-300">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Propriétés</div>
+      <PropertyField label="Type" value={CVC_TYPE_LABELS[object.type]} />
+      {isDuct ? (
+        <>
+          <PropertyField
+            label="Dimensions"
+            value={
+              object.type === "GaineRectangulaire"
+                ? `${object.widthMm ?? "—"} × ${object.heightMm ?? "—"} mm`
+                : `⌀ ${object.diameterMm ?? "—"} mm`
+            }
+          />
+          <PropertyField label="Longueur" value={object.lengthMeters != null ? `${object.lengthMeters.toFixed(2)} m` : "—"} />
+        </>
+      ) : (
+        <PropertyField
+          label="Position"
+          value={object.position ? `${object.position.x.toFixed(0)}, ${object.position.y.toFixed(0)}` : "—"}
+        />
+      )}
+      <PropertyField label="Connexions" value={String(object.connectedObjectIds.length)} />
+      <button
+        type="button"
+        onClick={onDelete}
+        disabled={deleting}
+        className="mt-2 rounded border border-rose-800 bg-rose-950/40 px-2 py-1.5 font-medium text-rose-300 hover:bg-rose-950/70 disabled:opacity-50"
+      >
+        {deleting ? "Suppression…" : "✕ Supprimer"}
+      </button>
+    </div>
+  );
+}
+
+function PropertyField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-slate-700 pb-1.5">
+      <span className="text-slate-500">{label}</span>
+      <span className="font-mono text-slate-200">{value}</span>
+    </div>
+  );
+}
+
+function CvcObjectsLayer({
+  objects,
+  selectedObjectId,
+  onSelect,
+  project,
+  markerSize,
+}: {
+  objects: CvcObjectDto[];
+  selectedObjectId: string | null;
+  onSelect: (id: string) => void;
+  project: Project;
+  markerSize: number;
+}) {
+  return (
+    <>
+      {objects.map((obj) => {
+        const selected = obj.id === selectedObjectId;
+        const color = selected ? "#f59e0b" : "#0d9488";
+        const onClick = (e: React.MouseEvent) => {
+          e.stopPropagation();
+          onSelect(obj.id);
+        };
+
+        if (obj.start && obj.end) {
+          const [x1, y1] = project(obj.start.x, obj.start.y);
+          const [x2, y2] = project(obj.end.x, obj.end.y);
+          const isCircular = obj.type === "GaineCirculaire";
+          return (
+            <g key={obj.id} onClick={onClick} style={{ cursor: "pointer" }}>
+              {/* zone de clic élargie, invisible : une gaine à 3px est difficile à viser précisément */}
+              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={16} vectorEffect="non-scaling-stroke" />
+              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={selected ? 4 : 3} vectorEffect="non-scaling-stroke" />
+              {isCircular && (
+                <>
+                  <circle cx={x1} cy={y1} r={markerSize * 0.22} fill={color} />
+                  <circle cx={x2} cy={y2} r={markerSize * 0.22} fill={color} />
+                </>
+              )}
+            </g>
+          );
+        }
+
+        if (obj.position) {
+          const [x, y] = project(obj.position.x, obj.position.y);
+          const size = obj.type === "Cta" ? markerSize * 1.8 : markerSize;
+          const isBouche = obj.type === "Bouche";
+          return (
+            <g
+              key={obj.id}
+              onClick={onClick}
+              style={{ cursor: "pointer" }}
+              transform={`translate(${x} ${y}) rotate(${(obj.rotationRad * 180) / Math.PI})`}
+            >
+              <rect
+                x={-size / 2}
+                y={-size / 2}
+                width={size}
+                height={size}
+                fill={isBouche ? "white" : color}
+                fillOpacity={isBouche ? 0 : 0.85}
+                stroke={color}
+                strokeWidth={selected ? 2.5 : 1.5}
+                vectorEffect="non-scaling-stroke"
+              />
+              <text
+                x={0}
+                y={1}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={size * 0.4}
+                fill={isBouche ? color : "white"}
+                style={{ pointerEvents: "none" }}
+              >
+                {POINT_OBJECT_LABELS[obj.type]}
+              </text>
+            </g>
+          );
+        }
+
+        return null;
+      })}
+    </>
+  );
+}
+
+function DuctDimensionsBar({
+  isCircular,
+  widthInput,
+  heightInput,
+  diameterInput,
+  onWidthChange,
+  onHeightChange,
+  onDiameterChange,
+  saving,
+  error,
+  onConfirm,
+  onCancel,
+}: {
+  isCircular: boolean;
+  widthInput: string;
+  heightInput: string;
+  diameterInput: string;
+  onWidthChange: (v: string) => void;
+  onHeightChange: (v: string) => void;
+  onDiameterChange: (v: string) => void;
+  saving: boolean;
+  error: string | null;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-2 border-b border-teal-800 bg-teal-950/30 px-3 py-2 text-sm text-teal-200">
+      <span className="text-xs">Dimensions de la gaine&nbsp;:</span>
+      {isCircular ? (
+        <>
+          <input
+            type="text"
+            inputMode="decimal"
+            autoFocus
+            value={diameterInput}
+            onChange={(e) => onDiameterChange(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onConfirm()}
+            placeholder="315"
+            className="w-20 rounded border border-teal-700 bg-slate-900 px-2 py-1 text-center font-mono text-teal-100"
+          />
+          <span className="text-xs">mm ⌀</span>
+        </>
+      ) : (
+        <>
+          <input
+            type="text"
+            inputMode="decimal"
+            autoFocus
+            value={widthInput}
+            onChange={(e) => onWidthChange(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onConfirm()}
+            placeholder="400"
+            className="w-16 rounded border border-teal-700 bg-slate-900 px-2 py-1 text-center font-mono text-teal-100"
+          />
+          <span className="text-xs">×</span>
+          <input
+            type="text"
+            inputMode="decimal"
+            value={heightInput}
+            onChange={(e) => onHeightChange(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && onConfirm()}
+            placeholder="250"
+            className="w-16 rounded border border-teal-700 bg-slate-900 px-2 py-1 text-center font-mono text-teal-100"
+          />
+          <span className="text-xs">mm</span>
+        </>
+      )}
+      <button
+        type="button"
+        onClick={onConfirm}
+        disabled={saving}
+        className="rounded bg-teal-600 px-3 py-1 font-medium text-slate-950 hover:bg-teal-500 disabled:opacity-50"
+      >
+        {saving ? "Création…" : "Valider"}
+      </button>
+      <button type="button" onClick={onCancel} className="text-xs text-teal-400 underline">
+        Annuler
+      </button>
+      {error && <span className="text-xs text-rose-400">{error}</span>}
     </div>
   );
 }
