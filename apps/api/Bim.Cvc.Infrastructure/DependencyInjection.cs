@@ -12,7 +12,8 @@ public static class DependencyInjection
 
         services.AddSingleton<IDrawingRepository, InMemoryDrawingRepository>();
         services.AddSingleton<IDrawingFileStore, LocalDiskDrawingFileStore>();
-        services.AddSingleton<IPdfPageCounter, PdfSharpPageCounter>();
+        services.AddSingleton<IPlanFileParser, PdfPlanParser>();
+        services.AddSingleton<IPlanFileParser, CadPlanParser>();
         services.AddScoped<DrawingService>();
 
         return services;

@@ -8,7 +8,7 @@ public sealed class DrawingServiceTests
 {
     private static DrawingService CreateSut(int pageCount = 1, IDrawingRepository? repository = null)
     {
-        return new DrawingService(new FakeFileStore(), repository ?? new FakeRepository(), new FakePageCounter(pageCount));
+        return new DrawingService(new FakeFileStore(), repository ?? new FakeRepository(), [new FakePlanParser(pageCount)]);
     }
 
     private static MemoryStream SomeBytes(int length = 16) => new(new byte[length]);
@@ -22,6 +22,7 @@ public sealed class DrawingServiceTests
 
         Assert.Equal("reseau-cvc.pdf", drawing.FileName);
         Assert.Equal(7, drawing.NbPages);
+        Assert.Equal(PlanFormat.Pdf, drawing.Format);
         Assert.NotEqual(Guid.Empty, drawing.Id);
     }
 
@@ -40,11 +41,22 @@ public sealed class DrawingServiceTests
     [InlineData("plan.png")]
     [InlineData("plan")]
     [InlineData("plan.PDF.exe")]
-    public async Task ImportAsync_rejects_non_pdf_file_names(string fileName)
+    public async Task ImportAsync_rejects_unsupported_file_extensions(string fileName)
     {
         var sut = CreateSut();
 
         await Assert.ThrowsAsync<InvalidDrawingException>(() => sut.ImportAsync(fileName, SomeBytes()));
+    }
+
+    [Theory]
+    [InlineData("plan.ifc")]
+    [InlineData("maquette.rvt")]
+    public async Task ImportAsync_rejects_ifc_and_revit_with_a_helpful_message(string fileName)
+    {
+        var sut = CreateSut();
+
+        var ex = await Assert.ThrowsAsync<InvalidDrawingException>(() => sut.ImportAsync(fileName, SomeBytes()));
+        Assert.Contains("export", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -56,11 +68,25 @@ public sealed class DrawingServiceTests
     }
 
     [Fact]
-    public async Task ImportAsync_rejects_a_pdf_with_no_pages()
+    public async Task ImportAsync_rejects_a_plan_with_no_pages()
     {
         var sut = CreateSut(pageCount: 0);
 
         await Assert.ThrowsAsync<InvalidDrawingException>(() => sut.ImportAsync("plan.pdf", SomeBytes()));
+    }
+
+    [Fact]
+    public async Task ImportAsync_routes_dxf_files_to_the_matching_parser()
+    {
+        var repository = new FakeRepository();
+        var sut = new DrawingService(
+            new FakeFileStore(),
+            repository,
+            [new FakePlanParser(1, PlanFormat.Pdf), new FakePlanParser(1, PlanFormat.Dxf)]);
+
+        var drawing = await sut.ImportAsync("reseau.dxf", SomeBytes());
+
+        Assert.Equal(PlanFormat.Dxf, drawing.Format);
     }
 
     private sealed class FakeFileStore : IDrawingFileStore
@@ -69,7 +95,7 @@ public sealed class DrawingServiceTests
             => Task.FromResult($"memory://{drawingId}");
 
         public Task<Stream> OpenReadAsync(string storagePath, CancellationToken ct = default)
-            => Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes("fake-pdf")));
+            => Task.FromResult<Stream>(new MemoryStream(Encoding.UTF8.GetBytes("fake-plan")));
     }
 
     private sealed class FakeRepository : IDrawingRepository
@@ -81,8 +107,10 @@ public sealed class DrawingServiceTests
         public Drawing? Get(Guid id) => _drawings.GetValueOrDefault(id);
     }
 
-    private sealed class FakePageCounter(int pageCount) : IPdfPageCounter
+    private sealed class FakePlanParser(int pageCount, PlanFormat format = PlanFormat.Pdf) : IPlanFileParser
     {
-        public int CountPages(Stream pdfContent) => pageCount;
+        public bool CanParse(PlanFormat candidate) => candidate == format;
+
+        public ParsedPlan Parse(PlanFormat candidate, Stream content) => new(pageCount, Entities: null);
     }
 }

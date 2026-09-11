@@ -14,14 +14,24 @@ export interface CalibrationDto {
   metersPerPixel: number;
 }
 
+export type PlanFormat = "Pdf" | "Dxf" | "Dwg";
+
 export interface DrawingDto {
   id: string;
   fileName: string;
+  format: PlanFormat;
   blobUrl: string;
   nbPages: number;
   uploadedAt: string;
   calibration: CalibrationDto | null;
 }
+
+export type PlanEntityDto =
+  | { type: "line"; points: [PointDto, PointDto] }
+  | { type: "polyline"; points: PointDto[]; closed: boolean }
+  | { type: "circle"; center: PointDto; radius: number }
+  | { type: "arc"; center: PointDto; radius: number; startAngle: number; endAngle: number }
+  | { type: "text"; position: PointDto; text: string; height: number };
 
 async function parseErrorMessage(res: Response, fallback: string): Promise<string> {
   try {
@@ -44,6 +54,16 @@ export async function uploadDrawing(file: File): Promise<DrawingDto> {
 
   if (!res.ok) {
     throw new Error(await parseErrorMessage(res, `Échec de l'enregistrement du plan (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function fetchDrawingEntities(drawingId: string): Promise<PlanEntityDto[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/entities`);
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la lecture du plan (${res.status})`));
   }
 
   return res.json();

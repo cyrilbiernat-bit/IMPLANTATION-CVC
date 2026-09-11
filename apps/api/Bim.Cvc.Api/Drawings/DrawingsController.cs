@@ -62,7 +62,7 @@ public sealed class DrawingsController(DrawingService drawingService, IDrawingFi
 
     /// <summary>
     /// Sert le contenu binaire d'un plan précédemment importé, pour
-    /// réaffichage côté client (fond de plan).
+    /// réaffichage côté client (fond de plan) ou téléchargement.
     /// </summary>
     [HttpGet("{id:guid}/file")]
     public async Task<IActionResult> GetFile(Guid id, CancellationToken ct)
@@ -74,6 +74,30 @@ public sealed class DrawingsController(DrawingService drawingService, IDrawingFi
         }
 
         var stream = await fileStore.OpenReadAsync(drawing.StoragePath, ct);
-        return File(stream, "application/pdf", drawing.FileName);
+        var contentType = drawing.Format switch
+        {
+            Bim.Cvc.Domain.PlanFormat.Pdf => "application/pdf",
+            Bim.Cvc.Domain.PlanFormat.Dxf => "image/vnd.dxf",
+            Bim.Cvc.Domain.PlanFormat.Dwg => "application/acad",
+            _ => "application/octet-stream",
+        };
+        return File(stream, contentType, drawing.FileName);
+    }
+
+    /// <summary>
+    /// Géométrie 2D extraite d'un plan vectoriel (DXF/DWG) — tableau vide
+    /// pour un PDF, qui n'a pas de représentation vectorielle.
+    /// </summary>
+    [HttpGet("{id:guid}/entities")]
+    public ActionResult<IReadOnlyList<PlanEntityDto>> GetEntities(Guid id)
+    {
+        var drawing = repository.Get(id);
+        if (drawing is null)
+        {
+            return NotFound();
+        }
+
+        var entities = drawing.VectorEntities?.Select(PlanEntityDto.From).ToList() ?? [];
+        return Ok(entities);
     }
 }

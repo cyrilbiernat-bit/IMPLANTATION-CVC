@@ -8,7 +8,7 @@ public sealed class DrawingServiceCalibrationTests
     private static (DrawingService sut, Drawing drawing) CreateCalibratedContext(int nbPages = 1)
     {
         var repository = new FakeRepository();
-        var sut = new DrawingService(new FakeFileStore(), repository, new FakePageCounter(nbPages));
+        var sut = new DrawingService(new FakeFileStore(), repository, []);
         var drawing = new Drawing { FileName = "plan.pdf", StoragePath = "memory://x", NbPages = nbPages };
         repository.Add(drawing);
         return (sut, drawing);
@@ -89,10 +89,5 @@ public sealed class DrawingServiceCalibrationTests
         public void Add(Drawing drawing) => _drawings[drawing.Id] = drawing;
 
         public Drawing? Get(Guid id) => _drawings.GetValueOrDefault(id);
-    }
-
-    private sealed class FakePageCounter(int pageCount) : IPdfPageCounter
-    {
-        public int CountPages(Stream pdfContent) => pageCount;
     }
 }

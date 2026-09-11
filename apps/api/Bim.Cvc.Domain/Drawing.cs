@@ -11,6 +11,10 @@ public sealed class Drawing
     public required string StoragePath { get; init; }
     public required int NbPages { get; init; }
     public DateTimeOffset UploadedAt { get; init; } = DateTimeOffset.UtcNow;
+    public PlanFormat Format { get; init; } = PlanFormat.Pdf;
+
+    /// <summary>Géométrie extraite pour un plan vectoriel (DXF/DWG). Null pour un PDF.</summary>
+    public IReadOnlyList<PlanEntity>? VectorEntities { get; init; }
 
     /// <summary>Échelle du plan (module 2). Null tant qu'il n'a pas été calibré.</summary>
     public Calibration? Calibration { get; set; }

@@ -3,5 +3,6 @@
   <Project Path="Bim.Cvc.Application.Tests/Bim.Cvc.Application.Tests.csproj" />
   <Project Path="Bim.Cvc.Application/Bim.Cvc.Application.csproj" />
   <Project Path="Bim.Cvc.Domain/Bim.Cvc.Domain.csproj" />
+  <Project Path="Bim.Cvc.Infrastructure.Tests/Bim.Cvc.Infrastructure.Tests.csproj" />
   <Project Path="Bim.Cvc.Infrastructure/Bim.Cvc.Infrastructure.csproj" />
 </Solution>

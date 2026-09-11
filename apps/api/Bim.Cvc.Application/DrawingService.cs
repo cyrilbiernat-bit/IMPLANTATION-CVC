@@ -7,41 +7,78 @@ public sealed class InvalidDrawingException(string message) : Exception(message)
 public sealed class DrawingService(
     IDrawingFileStore fileStore,
     IDrawingRepository repository,
-    IPdfPageCounter pageCounter)
+    IEnumerable<IPlanFileParser> parsers)
 {
     private const long MaxSizeBytes = 100 * 1024 * 1024; // 100 Mo — plan architecte scanné
 
     public async Task<Drawing> ImportAsync(string fileName, Stream content, CancellationToken ct = default)
     {
-        if (!fileName.EndsWith(".pdf", StringComparison.OrdinalIgnoreCase))
+        var format = ResolveFormat(fileName);
+
+        // Certains lecteurs (ACadSharp DxfReader/DwgReader) ferment le flux
+        // qu'on leur passe une fois la lecture terminée. On bufferise donc
+        // une bonne fois le contenu, puis on ouvre un flux indépendant par
+        // consommateur (parseur, stockage) plutôt que de réutiliser le même.
+        byte[] bytes;
+        await using (var buffer = new MemoryStream())
         {
-            throw new InvalidDrawingException("Seuls les fichiers PDF sont acceptés.");
+            await content.CopyToAsync(buffer, ct);
+            bytes = buffer.ToArray();
         }
-        if (content.Length is 0 or > MaxSizeBytes)
+
+        if ((long)bytes.Length is 0 or > MaxSizeBytes)
         {
             throw new InvalidDrawingException("Le fichier est vide ou dépasse la taille maximale (100 Mo).");
         }
 
-        int nbPages = pageCounter.CountPages(content);
-        if (nbPages < 1)
+        var parser = parsers.FirstOrDefault(p => p.CanParse(format))
+            ?? throw new InvalidDrawingException($"Format {format} non pris en charge.");
+
+        ParsedPlan parsed;
+        try
         {
-            throw new InvalidDrawingException("Le PDF ne contient aucune page exploitable.");
+            using var parseStream = new MemoryStream(bytes, writable: false);
+            parsed = parser.Parse(format, parseStream);
+        }
+        catch (Exception ex) when (ex is not InvalidDrawingException)
+        {
+            throw new InvalidDrawingException(
+                $"Impossible de lire ce fichier {format} : {ex.Message}");
         }
 
-        content.Position = 0;
+        if (parsed.PageCount < 1)
+        {
+            throw new InvalidDrawingException("Le plan ne contient aucune page/vue exploitable.");
+        }
+
         var id = Guid.NewGuid();
-        var storagePath = await fileStore.SaveAsync(id, fileName, content, ct);
+        using var saveStream = new MemoryStream(bytes, writable: false);
+        var storagePath = await fileStore.SaveAsync(id, fileName, saveStream, ct);
 
         var drawing = new Drawing
         {
             Id = id,
             FileName = fileName,
             StoragePath = storagePath,
-            NbPages = nbPages,
+            NbPages = parsed.PageCount,
+            Format = format,
+            VectorEntities = parsed.Entities,
         };
         repository.Add(drawing);
         return drawing;
     }
+
+    private static PlanFormat ResolveFormat(string fileName) => Path.GetExtension(fileName).ToLowerInvariant() switch
+    {
+        ".pdf" => PlanFormat.Pdf,
+        ".dxf" => PlanFormat.Dxf,
+        ".dwg" => PlanFormat.Dwg,
+        ".ifc" => throw new InvalidDrawingException(
+            "Le format IFC sera pris en charge dans une prochaine itération. En attendant, exportez votre plan en DXF ou PDF."),
+        ".rvt" => throw new InvalidDrawingException(
+            "Le format natif Revit (.rvt) n'est pas pris en charge. Depuis Revit, exportez votre vue en DWG, DXF ou PDF (Fichier > Exporter > Formats CAO), déjà pris en charge ici."),
+        _ => throw new InvalidDrawingException("Formats acceptés : PDF, DXF, DWG."),
+    };
 
     /// <summary>
     /// Module 2 — fixe l'échelle réelle d'un plan à partir de deux points
