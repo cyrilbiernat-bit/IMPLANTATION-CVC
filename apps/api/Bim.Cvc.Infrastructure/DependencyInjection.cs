@@ -24,6 +24,7 @@ public static class DependencyInjection
         services.AddScoped<LayerService>();
         services.AddScoped<CvcObjectService>();
         services.AddScoped<ProjectMetresService>();
+        services.AddScoped<ProjectNomenclatureService>();
 
         return services;
     }

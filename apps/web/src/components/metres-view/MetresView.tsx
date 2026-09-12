@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { fetchProjectMetres, type ProjectMetresDto } from "@/lib/api-client";
+import {
+  fetchNomenclature,
+  fetchProjectMetres,
+  nomenclatureExportUrl,
+  type NomenclatureRowDto,
+  type ProjectMetresDto,
+} from "@/lib/api-client";
 
 const ACCESSORY_LABELS: Record<string, string> = {
   Coude: "Coudes",
@@ -13,10 +19,31 @@ const ACCESSORY_LABELS: Record<string, string> = {
   Cta: "CTA",
 };
 
+const TYPE_LABELS: Record<string, string> = {
+  GaineRectangulaire: "Gaine rectangulaire",
+  GaineCirculaire: "Gaine circulaire",
+  Coude: "Coude",
+  Te: "Té",
+  Reduction: "Réduction",
+  Bouche: "Bouche",
+  Diffuseur: "Diffuseur",
+  Extracteur: "Extracteur",
+  Cta: "CTA",
+};
+
 const numberFormatter = new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 1 });
+
+function dimensionsLabel(row: NomenclatureRowDto): string {
+  if (row.diameterMm != null) return `⌀${numberFormatter.format(row.diameterMm)} mm`;
+  if (row.widthMm != null && row.heightMm != null) {
+    return `${numberFormatter.format(row.widthMm)}×${numberFormatter.format(row.heightMm)} mm`;
+  }
+  return "—";
+}
 
 export function MetresView({ projectId }: { projectId: string }) {
   const [metres, setMetres] = useState<ProjectMetresDto | null>(null);
+  const [rows, setRows] = useState<NomenclatureRowDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -29,8 +56,14 @@ export function MetresView({ projectId }: { projectId: string }) {
       setLoading(true);
       setError(null);
       try {
-        const data = await fetchProjectMetres(projectId);
-        if (!cancelled) setMetres(data);
+        const [metresData, nomenclatureData] = await Promise.all([
+          fetchProjectMetres(projectId),
+          fetchNomenclature(projectId),
+        ]);
+        if (!cancelled) {
+          setMetres(metresData);
+          setRows(nomenclatureData);
+        }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Échec de la lecture des métrés.");
       } finally {
@@ -61,23 +94,33 @@ export function MetresView({ projectId }: { projectId: string }) {
     );
   }
 
-  if (!metres) return null;
+  if (!metres || !rows) return null;
 
   const hasQuantities = metres.totalDuctLengthMeters > 0 || metres.accessoryCounts.length > 0;
 
   return (
-    <div className="flex flex-1 flex-col gap-4 overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 p-5">
+    <div className="flex flex-1 flex-col gap-5 overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 p-5">
       <div className="flex items-center justify-between">
         <p className="text-xs text-slate-500">
           {metres.drawingCount} plan{metres.drawingCount > 1 ? "s" : ""} pris en compte
         </p>
-        <button
-          type="button"
-          onClick={retry}
-          className="rounded border border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-300 hover:border-sky-500 hover:text-sky-300"
-        >
-          ⟳ Actualiser
-        </button>
+        <div className="flex gap-2">
+          {rows.length > 0 && (
+            <a
+              href={nomenclatureExportUrl(projectId)}
+              className="rounded border border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-300 hover:border-sky-500 hover:text-sky-300"
+            >
+              ⭳ Exporter en CSV
+            </a>
+          )}
+          <button
+            type="button"
+            onClick={retry}
+            className="rounded border border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-300 hover:border-sky-500 hover:text-sky-300"
+          >
+            ⟳ Actualiser
+          </button>
+        </div>
       </div>
 
       {!hasQuantities ? (
@@ -94,7 +137,7 @@ export function MetresView({ projectId }: { projectId: string }) {
 
           <div>
             <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
-              Nomenclature — accessoires, terminaux &amp; équipements
+              Décompte par type d&apos;accessoire, terminal &amp; équipement
             </h2>
             {metres.accessoryCounts.length === 0 ? (
               <p className="text-sm text-slate-500">Aucun accessoire posé.</p>
@@ -110,6 +153,60 @@ export function MetresView({ projectId }: { projectId: string }) {
                 </tbody>
               </table>
             )}
+          </div>
+
+          <div>
+            <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Nomenclature détaillée
+            </h2>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-sm" data-testid="nomenclature-table">
+                <thead>
+                  <tr className="border-b border-slate-700 text-left text-[11px] uppercase tracking-wide text-slate-500">
+                    <th className="py-1.5 pr-3">Id</th>
+                    <th className="py-1.5 pr-3">Plan</th>
+                    <th className="py-1.5 pr-3">Calque</th>
+                    <th className="py-1.5 pr-3">Type</th>
+                    <th className="py-1.5 pr-3">Dimensions</th>
+                    <th className="py-1.5 pr-3 text-right">Longueur</th>
+                    <th className="py-1.5 pr-3 text-right">Débit</th>
+                    <th className="py-1.5 pr-3 text-right">Vitesse</th>
+                    <th className="py-1.5 pr-3 text-right">Pression</th>
+                    <th className="py-1.5 pr-3 text-right">Poids</th>
+                    <th className="py-1.5 text-right">Calorifuge</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-800">
+                  {rows.map((r) => (
+                    <tr key={r.objectId}>
+                      <td className="py-1.5 pr-3 font-mono text-slate-500">{r.objectId.slice(0, 8)}</td>
+                      <td className="py-1.5 pr-3 text-slate-300">{r.drawingFileName}</td>
+                      <td className="py-1.5 pr-3 text-slate-300">{r.layerName}</td>
+                      <td className="py-1.5 pr-3 text-slate-300">{TYPE_LABELS[r.type] ?? r.type}</td>
+                      <td className="py-1.5 pr-3 font-mono text-slate-300">{dimensionsLabel(r)}</td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-slate-100">
+                        {r.lengthMeters != null ? `${numberFormatter.format(r.lengthMeters)} m` : "—"}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-slate-100">
+                        {r.debitM3h != null ? `${numberFormatter.format(r.debitM3h)} m³/h` : "—"}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-slate-100">
+                        {r.vitesseMs != null ? `${numberFormatter.format(r.vitesseMs)} m/s` : "—"}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-slate-100">
+                        {r.pressionPa != null ? `${numberFormatter.format(r.pressionPa)} Pa` : "—"}
+                      </td>
+                      <td className="py-1.5 pr-3 text-right font-mono text-slate-100">
+                        {r.weightKg != null ? `${numberFormatter.format(r.weightKg)} kg` : "—"}
+                      </td>
+                      <td className="py-1.5 text-right font-mono text-slate-100">
+                        {r.insulationAreaM2 != null ? `${numberFormatter.format(r.insulationAreaM2)} m²` : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </>
       )}

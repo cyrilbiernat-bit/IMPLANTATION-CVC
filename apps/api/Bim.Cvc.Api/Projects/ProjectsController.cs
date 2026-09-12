@@ -1,3 +1,4 @@
+using System.Text;
 using Bim.Cvc.Api.Drawings;
 using Bim.Cvc.Application;
 using Microsoft.AspNetCore.Mvc;
@@ -10,6 +11,7 @@ namespace Bim.Cvc.Api.Projects;
 public sealed class ProjectsController(
     ProjectService projectService,
     ProjectMetresService metresService,
+    ProjectNomenclatureService nomenclatureService,
     DrawingService drawingService,
     LayerService layerService,
     IDrawingRepository drawings) : ControllerBase
@@ -101,5 +103,38 @@ public sealed class ProjectsController(
         {
             return NotFound();
         }
+    }
+
+    /// <summary>Module 6 — nomenclature détaillée, ligne par ligne, des objets CVC du projet.</summary>
+    [HttpGet("{id:guid}/nomenclature")]
+    public ActionResult<IReadOnlyList<NomenclatureRowDto>> Nomenclature(Guid id)
+    {
+        try
+        {
+            return Ok(nomenclatureService.Compute(id).Select(NomenclatureRowDto.From).ToList());
+        }
+        catch (ProjectNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
+    /// <summary>Module 6 — export CSV de la nomenclature, pour ouverture dans un tableur.</summary>
+    [HttpGet("{id:guid}/nomenclature/export")]
+    public IActionResult ExportNomenclature(Guid id)
+    {
+        IReadOnlyList<NomenclatureRowDto> rows;
+        try
+        {
+            rows = nomenclatureService.Compute(id).Select(NomenclatureRowDto.From).ToList();
+        }
+        catch (ProjectNotFoundException)
+        {
+            return NotFound();
+        }
+
+        var csv = NomenclatureCsvWriter.Write(rows);
+        var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
+        return File(bytes, "text/csv", $"nomenclature-{id}.csv");
     }
 }

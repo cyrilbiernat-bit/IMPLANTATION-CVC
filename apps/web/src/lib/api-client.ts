@@ -36,6 +36,22 @@ export interface ProjectMetresDto {
   accessoryCounts: AccessoryCountDto[];
 }
 
+export interface NomenclatureRowDto {
+  objectId: string;
+  drawingFileName: string;
+  layerName: string;
+  type: CvcObjectType;
+  widthMm: number | null;
+  heightMm: number | null;
+  diameterMm: number | null;
+  lengthMeters: number | null;
+  debitM3h: number | null;
+  vitesseMs: number | null;
+  pressionPa: number | null;
+  weightKg: number | null;
+  insulationAreaM2: number | null;
+}
+
 export interface DrawingDto {
   id: string;
   projectId: string;
@@ -181,6 +197,20 @@ export async function fetchProjectMetres(projectId: string): Promise<ProjectMetr
   }
 
   return res.json();
+}
+
+export async function fetchNomenclature(projectId: string): Promise<NomenclatureRowDto[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/nomenclature`);
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la lecture de la nomenclature (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export function nomenclatureExportUrl(projectId: string): string {
+  return `${API_BASE_URL}/api/v1/projects/${projectId}/nomenclature/export`;
 }
 
 export async function uploadDrawing(projectId: string, file: File): Promise<DrawingDto> {

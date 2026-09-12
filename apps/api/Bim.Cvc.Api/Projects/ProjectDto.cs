@@ -31,3 +31,34 @@ public sealed record ProjectMetresDto(
         summary.TotalWeightKg,
         summary.AccessoryCounts.Select(AccessoryCountDto.From).ToList());
 }
+
+public sealed record NomenclatureRowDto(
+    Guid ObjectId,
+    string DrawingFileName,
+    string LayerName,
+    string Type,
+    double? WidthMm,
+    double? HeightMm,
+    double? DiameterMm,
+    double? LengthMeters,
+    double? DebitM3h,
+    double? VitesseMs,
+    double? PressionPa,
+    double? WeightKg,
+    double? InsulationAreaM2)
+{
+    public static NomenclatureRowDto From(NomenclatureRow row) => new(
+        row.ObjectId,
+        row.DrawingFileName,
+        row.LayerName,
+        row.Type.ToString(),
+        row.WidthMm,
+        row.HeightMm,
+        row.DiameterMm,
+        row.LengthMeters,
+        row.DebitM3h,
+        row.VitesseMs,
+        row.PressionPa,
+        row.WeightKg,
+        row.InsulationAreaM2);
+}
