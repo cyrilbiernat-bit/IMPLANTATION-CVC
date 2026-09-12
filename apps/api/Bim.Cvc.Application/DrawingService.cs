@@ -7,12 +7,14 @@ public sealed class InvalidDrawingException(string message) : Exception(message)
 public sealed class DrawingService(
     IDrawingFileStore fileStore,
     IDrawingRepository repository,
-    IEnumerable<IPlanFileParser> parsers)
+    IEnumerable<IPlanFileParser> parsers,
+    ProjectService projects)
 {
     private const long MaxSizeBytes = 100 * 1024 * 1024; // 100 Mo — plan architecte scanné
 
-    public async Task<Drawing> ImportAsync(string fileName, Stream content, CancellationToken ct = default)
+    public async Task<Drawing> ImportAsync(Guid projectId, string fileName, Stream content, CancellationToken ct = default)
     {
+        _ = projects.Get(projectId); // lève ProjectNotFoundException si le projet n'existe pas.
         var format = ResolveFormat(fileName);
 
         // Certains lecteurs (ACadSharp DxfReader/DwgReader) ferment le flux
@@ -58,6 +60,7 @@ public sealed class DrawingService(
         var drawing = new Drawing
         {
             Id = id,
+            ProjectId = projectId,
             FileName = fileName,
             StoragePath = storagePath,
             NbPages = parsed.PageCount,

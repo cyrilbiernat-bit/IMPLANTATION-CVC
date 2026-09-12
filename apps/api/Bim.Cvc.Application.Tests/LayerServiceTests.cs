@@ -8,7 +8,7 @@ public sealed class LayerServiceTests
     private static (LayerService sut, FakeLayerRepository layers, FakeCvcObjectRepository objects, Guid drawingId) CreateSut()
     {
         var drawings = new FakeDrawingRepository();
-        var drawing = new Drawing { FileName = "plan.pdf", StoragePath = "memory://x", NbPages = 1 };
+        var drawing = new Drawing { ProjectId = Guid.NewGuid(), FileName = "plan.pdf", StoragePath = "memory://x", NbPages = 1 };
         drawings.Add(drawing);
 
         var layers = new FakeLayerRepository();
@@ -206,6 +206,9 @@ public sealed class LayerServiceTests
         public void Add(Drawing drawing) => _drawings[drawing.Id] = drawing;
 
         public Drawing? Get(Guid id) => _drawings.GetValueOrDefault(id);
+
+        public IReadOnlyList<Drawing> GetByProject(Guid projectId) =>
+            _drawings.Values.Where(d => d.ProjectId == projectId).ToList();
     }
 
     private sealed class FakeCvcObjectRepository : ICvcObjectRepository

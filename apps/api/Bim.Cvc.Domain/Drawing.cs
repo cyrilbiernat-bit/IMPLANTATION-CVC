@@ -7,6 +7,7 @@ namespace Bim.Cvc.Domain;
 public sealed class Drawing
 {
     public Guid Id { get; init; } = Guid.NewGuid();
+    public required Guid ProjectId { get; init; }
     public required string FileName { get; init; }
     public required string StoragePath { get; init; }
     public required int NbPages { get; init; }

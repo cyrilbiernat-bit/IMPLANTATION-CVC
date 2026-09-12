@@ -4,6 +4,7 @@ namespace Bim.Cvc.Api.Drawings;
 
 public sealed record DrawingDto(
     Guid Id,
+    Guid ProjectId,
     string FileName,
     string Format,
     string BlobUrl,
@@ -17,6 +18,7 @@ public sealed record DrawingDto(
         var calibration = drawing.Calibration is null ? null : CalibrationDto.From(drawing.Calibration);
         return new DrawingDto(
             drawing.Id,
+            drawing.ProjectId,
             drawing.FileName,
             drawing.Format.ToString(),
             blobUrl,

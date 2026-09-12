@@ -10,6 +10,9 @@ public static class DependencyInjection
     {
         services.Configure<LocalStorageOptions>(configuration.GetSection("LocalStorage"));
 
+        services.AddSingleton<IProjectRepository, InMemoryProjectRepository>();
+        services.AddScoped<ProjectService>();
+
         services.AddSingleton<IDrawingRepository, InMemoryDrawingRepository>();
         services.AddSingleton<IDrawingFileStore, LocalDiskDrawingFileStore>();
         services.AddSingleton<IPlanFileParser, PdfPlanParser>();
@@ -20,6 +23,7 @@ public static class DependencyInjection
         services.AddSingleton<ILayerRepository, InMemoryLayerRepository>();
         services.AddScoped<LayerService>();
         services.AddScoped<CvcObjectService>();
+        services.AddScoped<ProjectMetresService>();
 
         return services;
     }

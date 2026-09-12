@@ -8,8 +8,9 @@ public sealed class DrawingServiceCalibrationTests
     private static (DrawingService sut, Drawing drawing) CreateCalibratedContext(int nbPages = 1)
     {
         var repository = new FakeRepository();
-        var sut = new DrawingService(new FakeFileStore(), repository, []);
-        var drawing = new Drawing { FileName = "plan.pdf", StoragePath = "memory://x", NbPages = nbPages };
+        var projects = new ProjectService(new FakeProjectRepository());
+        var sut = new DrawingService(new FakeFileStore(), repository, [], projects);
+        var drawing = new Drawing { ProjectId = Guid.NewGuid(), FileName = "plan.pdf", StoragePath = "memory://x", NbPages = nbPages };
         repository.Add(drawing);
         return (sut, drawing);
     }
@@ -89,5 +90,19 @@ public sealed class DrawingServiceCalibrationTests
         public void Add(Drawing drawing) => _drawings[drawing.Id] = drawing;
 
         public Drawing? Get(Guid id) => _drawings.GetValueOrDefault(id);
+
+        public IReadOnlyList<Drawing> GetByProject(Guid projectId) =>
+            _drawings.Values.Where(d => d.ProjectId == projectId).ToList();
+    }
+
+    private sealed class FakeProjectRepository : IProjectRepository
+    {
+        private readonly Dictionary<Guid, Project> _projects = [];
+
+        public void Add(Project project) => _projects[project.Id] = project;
+
+        public Project? Get(Guid id) => _projects.GetValueOrDefault(id);
+
+        public IReadOnlyList<Project> GetAll() => _projects.Values.ToList();
     }
 }

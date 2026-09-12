@@ -16,8 +16,29 @@ export interface CalibrationDto {
 
 export type PlanFormat = "Pdf" | "Dxf" | "Dwg";
 
+export interface ProjectDto {
+  id: string;
+  name: string;
+  createdAt: string;
+}
+
+export interface AccessoryCountDto {
+  type: CvcObjectType;
+  count: number;
+}
+
+export interface ProjectMetresDto {
+  projectId: string;
+  drawingCount: number;
+  totalDuctLengthMeters: number;
+  totalInsulationAreaM2: number;
+  totalWeightKg: number;
+  accessoryCounts: AccessoryCountDto[];
+}
+
 export interface DrawingDto {
   id: string;
+  projectId: string;
   fileName: string;
   format: PlanFormat;
   blobUrl: string;
@@ -108,11 +129,65 @@ async function parseErrorMessage(res: Response, fallback: string): Promise<strin
   return fallback;
 }
 
-export async function uploadDrawing(file: File): Promise<DrawingDto> {
+export async function fetchProjects(): Promise<ProjectDto[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects`);
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la lecture des projets (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function fetchProject(projectId: string): Promise<ProjectDto> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}`);
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la lecture du projet (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function createProject(name: string): Promise<ProjectDto> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la création du projet (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function fetchProjectDrawings(projectId: string): Promise<DrawingDto[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/drawings`);
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la lecture des plans (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function fetchProjectMetres(projectId: string): Promise<ProjectMetresDto> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/metres`);
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la lecture des métrés (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function uploadDrawing(projectId: string, file: File): Promise<DrawingDto> {
   const form = new FormData();
   form.append("file", file);
 
-  const res = await fetch(`${API_BASE_URL}/api/v1/drawings`, {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/drawings`, {
     method: "POST",
     body: form,
   });

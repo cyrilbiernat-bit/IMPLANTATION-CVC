@@ -15,4 +15,7 @@ public sealed class InMemoryDrawingRepository : IDrawingRepository
     public void Add(Drawing drawing) => _drawings[drawing.Id] = drawing;
 
     public Drawing? Get(Guid id) => _drawings.GetValueOrDefault(id);
+
+    public IReadOnlyList<Drawing> GetByProject(Guid projectId) =>
+        _drawings.Values.Where(d => d.ProjectId == projectId).OrderBy(d => d.UploadedAt).ToList();
 }

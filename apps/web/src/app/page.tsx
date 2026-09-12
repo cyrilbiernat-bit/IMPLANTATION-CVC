@@ -10,14 +10,14 @@ export default function Home() {
         Implantation CVC 100&nbsp;% web
       </h1>
       <p className="mt-3 max-w-md text-slate-400">
-        Module 1 — importez un plan PDF et naviguez-y avant de dessiner votre
-        réseau.
+        Importez vos plans, dessinez votre réseau, et retrouvez calques,
+        métrés et nomenclature par projet.
       </p>
       <Link
-        href="/projets/demo/plan"
+        href="/projets"
         className="mt-8 rounded-full bg-sky-500 px-6 py-2.5 font-medium text-slate-950 transition-colors hover:bg-sky-400"
       >
-        Ouvrir le projet de démonstration
+        Voir mes projets
       </Link>
     </div>
   );

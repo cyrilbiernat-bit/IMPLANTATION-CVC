@@ -174,7 +174,7 @@ function findSnapTarget(point: DrawingPoint, objects: CvcObjectDto[], toleranceU
   return best;
 }
 
-export function PlanViewer() {
+export function PlanViewer({ projectId }: { projectId: string }) {
   const [format, setFormat] = useState<PlanFormatState>(null);
   const [fileName, setFileName] = useState<string | null>(null);
   const [scale, setScale] = useState(1);
@@ -292,7 +292,7 @@ export function PlanViewer() {
 
     setSaveStatus("uploading");
     try {
-      const drawing = await uploadDrawing(file);
+      const drawing = await uploadDrawing(projectId, file);
       setDrawingId(drawing.id);
 
       if (extension === "dxf" || extension === "dwg") {
@@ -331,7 +331,7 @@ export function PlanViewer() {
         setSaveMessage("Aperçu local uniquement : l'API de persistance n'a pas répondu.");
       }
     }
-  }, []);
+  }, [projectId]);
 
   const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

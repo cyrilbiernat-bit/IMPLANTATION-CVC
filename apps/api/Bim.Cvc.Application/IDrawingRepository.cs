@@ -7,4 +7,6 @@ public interface IDrawingRepository
     void Add(Drawing drawing);
 
     Drawing? Get(Guid id);
+
+    IReadOnlyList<Drawing> GetByProject(Guid projectId);
 }

@@ -8,7 +8,7 @@ public sealed class CvcObjectServiceTests
     private static (CvcObjectService sut, FakeLayerRepository layers, Guid drawingId, Guid layerId) CreateSut(bool calibrated = true)
     {
         var drawings = new FakeDrawingRepository();
-        var drawing = new Drawing { FileName = "plan.pdf", StoragePath = "memory://x", NbPages = 1 };
+        var drawing = new Drawing { ProjectId = Guid.NewGuid(), FileName = "plan.pdf", StoragePath = "memory://x", NbPages = 1 };
         if (calibrated)
         {
             // 100 px pour 10 m -> 0,1 m/px.
@@ -261,6 +261,9 @@ public sealed class CvcObjectServiceTests
         public void Add(Drawing drawing) => _drawings[drawing.Id] = drawing;
 
         public Drawing? Get(Guid id) => _drawings.GetValueOrDefault(id);
+
+        public IReadOnlyList<Drawing> GetByProject(Guid projectId) =>
+            _drawings.Values.Where(d => d.ProjectId == projectId).ToList();
     }
 
     private sealed class FakeCvcObjectRepository : ICvcObjectRepository
