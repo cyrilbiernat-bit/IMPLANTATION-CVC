@@ -1,4 +1,6 @@
 using Bim.Cvc.Application;
+using Bim.Cvc.Infrastructure.Persistence;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -10,17 +12,22 @@ public static class DependencyInjection
     {
         services.Configure<LocalStorageOptions>(configuration.GetSection("LocalStorage"));
 
-        services.AddSingleton<IProjectRepository, InMemoryProjectRepository>();
+        var connectionString = configuration.GetConnectionString("BimCvc")
+            ?? throw new InvalidOperationException(
+                "Chaîne de connexion 'BimCvc' manquante (ConnectionStrings:BimCvc dans la configuration).");
+        services.AddDbContext<BimCvcDbContext>(options => options.UseNpgsql(connectionString));
+
+        services.AddScoped<IProjectRepository, EfProjectRepository>();
         services.AddScoped<ProjectService>();
 
-        services.AddSingleton<IDrawingRepository, InMemoryDrawingRepository>();
+        services.AddScoped<IDrawingRepository, EfDrawingRepository>();
         services.AddSingleton<IDrawingFileStore, LocalDiskDrawingFileStore>();
         services.AddSingleton<IPlanFileParser, PdfPlanParser>();
         services.AddSingleton<IPlanFileParser, CadPlanParser>();
         services.AddScoped<DrawingService>();
 
-        services.AddSingleton<ICvcObjectRepository, InMemoryCvcObjectRepository>();
-        services.AddSingleton<ILayerRepository, InMemoryLayerRepository>();
+        services.AddScoped<ICvcObjectRepository, EfCvcObjectRepository>();
+        services.AddScoped<ILayerRepository, EfLayerRepository>();
         services.AddScoped<LayerService>();
         services.AddScoped<CvcObjectService>();
         services.AddScoped<ProjectMetresService>();

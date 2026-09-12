@@ -1,3 +1,4 @@
+using Bim.Cvc.Api.Persistence;
 using Bim.Cvc.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,6 +26,7 @@ if (app.Environment.IsDevelopment())
 
 app.UseCors(WebClientCorsPolicy);
 app.UseAuthorization();
+app.UseMiddleware<SaveChangesMiddleware>();
 app.MapControllers();
 
 app.Run();
