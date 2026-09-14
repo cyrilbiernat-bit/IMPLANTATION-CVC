@@ -1374,6 +1374,21 @@ function CvcObjectsLayer({
 
         if (obj.position) {
           const [x, y] = project(obj.position.x, obj.position.y);
+          const rotationDeg = (obj.rotationRad * 180) / Math.PI;
+
+          if (obj.type === "Coude" || obj.type === "Te" || obj.type === "Reduction") {
+            return (
+              <g
+                key={obj.id}
+                onClick={onClick}
+                style={{ cursor: "pointer" }}
+                transform={`translate(${x} ${y}) rotate(${rotationDeg})`}
+              >
+                <FittingIcon type={obj.type} size={markerSize} color={color} />
+              </g>
+            );
+          }
+
           const size = obj.type === "Cta" ? markerSize * 1.8 : markerSize;
           const isBouche = obj.type === "Bouche";
           return (
@@ -1381,7 +1396,7 @@ function CvcObjectsLayer({
               key={obj.id}
               onClick={onClick}
               style={{ cursor: "pointer" }}
-              transform={`translate(${x} ${y}) rotate(${(obj.rotationRad * 180) / Math.PI})`}
+              transform={`translate(${x} ${y}) rotate(${rotationDeg})`}
             >
               <rect
                 x={-size / 2}
@@ -1411,6 +1426,98 @@ function CvcObjectsLayer({
 
         return null;
       })}
+    </>
+  );
+}
+
+/**
+ * Symboles distinctifs pour les raccords (module 3) — un coude, un té
+ * (piquage) et une réduction se reconnaissent d'un coup d'œil sur un plan
+ * réel ; le carré générique avec initiales ne le permettait pas.
+ */
+function FittingIcon({
+  type,
+  size,
+  color,
+}: {
+  type: "Coude" | "Te" | "Reduction";
+  size: number;
+  color: string;
+}) {
+  const strokeWidth = size * 0.22;
+  const hitSize = size * 1.6;
+  const hitArea = (
+    <rect x={-hitSize / 2} y={-hitSize / 2} width={hitSize} height={hitSize} fill="transparent" />
+  );
+
+  if (type === "Reduction") {
+    // Tronc de cône de réduction : la gaine se rétrécit de gauche à droite.
+    const points = [
+      [-size / 2, -size * 0.32],
+      [-size / 2, size * 0.32],
+      [size / 2, size * 0.14],
+      [size / 2, -size * 0.14],
+    ]
+      .map((p) => p.join(","))
+      .join(" ");
+    return (
+      <>
+        {hitArea}
+        <polygon
+          points={points}
+          fill={color}
+          fillOpacity={0.85}
+          stroke={color}
+          strokeWidth={1.5}
+          vectorEffect="non-scaling-stroke"
+        />
+      </>
+    );
+  }
+
+  if (type === "Te") {
+    // Té/piquage : le collecteur principal avec une dérivation perpendiculaire.
+    return (
+      <>
+        {hitArea}
+        <line
+          x1={-size / 2}
+          y1={0}
+          x2={size / 2}
+          y2={0}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+        <line
+          x1={0}
+          y1={0}
+          x2={0}
+          y2={size / 2}
+          stroke={color}
+          strokeWidth={strokeWidth}
+          strokeLinecap="round"
+          vectorEffect="non-scaling-stroke"
+        />
+      </>
+    );
+  }
+
+  // Coude : arrivée par la gauche, coude arrondi à 90° vers le bas.
+  const r = size * 0.22;
+  const d = `M ${-size / 2} 0 L ${-r} 0 A ${r} ${r} 0 0 1 0 ${r} L 0 ${size / 2}`;
+  return (
+    <>
+      {hitArea}
+      <path
+        d={d}
+        fill="none"
+        stroke={color}
+        strokeWidth={strokeWidth}
+        strokeLinecap="round"
+        vectorEffect="non-scaling-stroke"
+      />
     </>
   );
 }
