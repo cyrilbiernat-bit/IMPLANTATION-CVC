@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Bim.Cvc.Infrastructure.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Bim.Cvc.Infrastructure.Persistence.Migrations
 {
     [DbContext(typeof(BimCvcDbContext))]
-    partial class BimCvcDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260914063835_AddBuildingModel")]
+    partial class AddBuildingModel
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

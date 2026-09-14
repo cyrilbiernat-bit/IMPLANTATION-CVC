@@ -14,9 +14,11 @@ public sealed class ProjectsController(
     ProjectNomenclatureService nomenclatureService,
     DrawingService drawingService,
     LayerService layerService,
+    BuildingModelService buildingModelService,
     IDrawingRepository drawings) : ControllerBase
 {
     private const long MaxRequestBodySizeBytes = 100 * 1024 * 1024;
+    private const long MaxBuildingModelBodySizeBytes = 200 * 1024 * 1024;
 
     [HttpGet]
     public ActionResult<IReadOnlyList<ProjectDto>> List() =>
@@ -136,5 +138,49 @@ public sealed class ProjectsController(
         var csv = NomenclatureCsvWriter.Write(rows);
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
         return File(bytes, "text/csv", $"nomenclature-{id}.csv");
+    }
+
+    /// <summary>
+    /// Lot 2 — importe un modèle de bâtiment IFC (CAO 3D, ex. FreeCAD/BIM,
+    /// Revit, ArchiCAD) rattaché à ce projet. Remplace le précédent s'il y en a un.
+    /// </summary>
+    [HttpPost("{id:guid}/building-model")]
+    [RequestSizeLimit(MaxBuildingModelBodySizeBytes)]
+    public async Task<ActionResult<BuildingModelDto>> UploadBuildingModel(Guid id, IFormFile file, CancellationToken ct)
+    {
+        if (file.Length == 0)
+        {
+            return BadRequest(new { message = "Aucun fichier reçu." });
+        }
+
+        try
+        {
+            await using var stream = file.OpenReadStream();
+            var model = await buildingModelService.ImportAsync(id, file.FileName, stream, ct);
+            return Ok(BuildingModelDto.From(model));
+        }
+        catch (ProjectNotFoundException)
+        {
+            return NotFound(new { message = "Projet introuvable." });
+        }
+        catch (InvalidBuildingModelException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
+    /// <summary>Lot 2 — géométrie déjà triangulée du modèle de bâtiment du projet, pour la vue 3D.</summary>
+    [HttpGet("{id:guid}/building-model")]
+    public ActionResult<BuildingModelDto> GetBuildingModel(Guid id)
+    {
+        try
+        {
+            var model = buildingModelService.GetByProject(id);
+            return model is null ? NotFound() : Ok(BuildingModelDto.From(model));
+        }
+        catch (ProjectNotFoundException)
+        {
+            return NotFound();
+        }
     }
 }

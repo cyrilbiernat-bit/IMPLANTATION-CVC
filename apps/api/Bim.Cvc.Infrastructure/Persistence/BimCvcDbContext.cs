@@ -9,6 +9,7 @@ public sealed class BimCvcDbContext(DbContextOptions<BimCvcDbContext> options) :
     public DbSet<Drawing> Drawings => Set<Drawing>();
     public DbSet<Layer> Layers => Set<Layer>();
     public DbSet<CvcObject> CvcObjects => Set<CvcObject>();
+    public DbSet<BuildingModel> BuildingModels => Set<BuildingModel>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

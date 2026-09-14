@@ -36,6 +36,21 @@ export interface ProjectMetresDto {
   accessoryCounts: AccessoryCountDto[];
 }
 
+export interface BuildingElementDto {
+  ifcType: string;
+  name: string;
+  positions: number[];
+  indices: number[];
+}
+
+export interface BuildingModelDto {
+  id: string;
+  projectId: string;
+  fileName: string;
+  uploadedAt: string;
+  elements: BuildingElementDto[];
+}
+
 export interface NomenclatureRowDto {
   objectId: string;
   drawingFileName: string;
@@ -345,6 +360,34 @@ export async function calibrateDrawing(
 
   if (!res.ok) {
     throw new Error(await parseErrorMessage(res, `Échec de la calibration (${res.status})`));
+  }
+
+  return res.json();
+}
+
+export async function uploadBuildingModel(projectId: string, file: File): Promise<BuildingModelDto> {
+  const form = new FormData();
+  form.append("file", file);
+
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/building-model`, {
+    method: "POST",
+    body: form,
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de l'import du modèle de bâtiment (${res.status})`));
+  }
+
+  return res.json();
+}
+
+/** Retourne null si aucun modèle de bâtiment n'a été importé pour ce projet. */
+export async function fetchBuildingModel(projectId: string): Promise<BuildingModelDto | null> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/building-model`);
+
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la lecture du modèle de bâtiment (${res.status})`));
   }
 
   return res.json();

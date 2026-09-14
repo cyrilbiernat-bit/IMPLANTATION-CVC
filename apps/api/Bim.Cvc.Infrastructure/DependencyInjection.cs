@@ -11,6 +11,7 @@ public static class DependencyInjection
     public static IServiceCollection AddInfrastructure(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<LocalStorageOptions>(configuration.GetSection("LocalStorage"));
+        services.Configure<IfcExtractionOptions>(configuration.GetSection("IfcExtraction"));
 
         var connectionString = configuration.GetConnectionString("BimCvc")
             ?? throw new InvalidOperationException(
@@ -32,6 +33,10 @@ public static class DependencyInjection
         services.AddScoped<CvcObjectService>();
         services.AddScoped<ProjectMetresService>();
         services.AddScoped<ProjectNomenclatureService>();
+
+        services.AddScoped<IBuildingModelRepository, EfBuildingModelRepository>();
+        services.AddScoped<IIfcGeometryExtractor, IfcOpenShellGeometryExtractor>();
+        services.AddScoped<BuildingModelService>();
 
         return services;
     }

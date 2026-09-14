@@ -4,8 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
+  fetchBuildingModel,
   fetchCvcObjects,
   fetchProjectDrawings,
+  uploadBuildingModel,
+  type BuildingModelDto,
   type CvcObjectDto,
   type CvcObjectType,
   type DrawingDto,
@@ -51,6 +54,11 @@ export function Scene3DView({ projectId }: { projectId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  const [buildingModel, setBuildingModel] = useState<BuildingModelDto | null>(null);
+  const [buildingModelError, setBuildingModelError] = useState<string | null>(null);
+  const [uploadingBuildingModel, setUploadingBuildingModel] = useState(false);
+  const [buildingModelReloadToken, setBuildingModelReloadToken] = useState(0);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -91,14 +99,53 @@ export function Scene3DView({ projectId }: { projectId: string }) {
     };
   }, [selectedDrawingId]);
 
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!cancelled) setBuildingModelError(null);
+      try {
+        const data = await fetchBuildingModel(projectId);
+        if (!cancelled) setBuildingModel(data);
+      } catch (err) {
+        if (!cancelled) setBuildingModelError(err instanceof Error ? err.message : "Échec de la lecture du modèle de bâtiment.");
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, buildingModelReloadToken]);
+
+  const onBuildingModelFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+
+    setUploadingBuildingModel(true);
+    setBuildingModelError(null);
+    try {
+      const model = await uploadBuildingModel(projectId, file);
+      setBuildingModel(model);
+    } catch (err) {
+      setBuildingModelError(err instanceof Error ? err.message : "Échec de l'import du modèle de bâtiment.");
+    } finally {
+      setUploadingBuildingModel(false);
+    }
+  };
+
   const selectedDrawing = drawings?.find((d) => d.id === selectedDrawingId) ?? null;
   const calibration = selectedDrawing?.calibration ?? null;
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !calibration || !objects) return;
-    const mpp = calibration.metersPerPixel;
+    const hasNetwork = !!(calibration && objects);
+    if (!container || (!hasNetwork && !buildingModel)) return;
+    const mpp = calibration?.metersPerPixel ?? 1;
     const toWorld = (x: number, y: number): [number, number] => [x * mpp, -y * mpp];
+    // Le bâtiment IFC vient dans son propre repère (mètres, Z = élévation,
+    // convention BIM courante) : on l'aligne sur le même plan horizontal
+    // (X, Z) que le réseau CVC, sans recalage automatique entre les deux —
+    // leurs origines respectives ne coïncident pas forcément.
+    const ifcToWorld = (x: number, y: number, z: number): [number, number, number] => [x, z, -y];
 
     const bounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
     const consider = (x: number, z: number) => {
@@ -107,10 +154,16 @@ export function Scene3DView({ projectId }: { projectId: string }) {
       bounds.minZ = Math.min(bounds.minZ, z);
       bounds.maxZ = Math.max(bounds.maxZ, z);
     };
-    for (const obj of objects) {
+    for (const obj of objects ?? []) {
       if (obj.start) consider(...toWorld(obj.start.x, obj.start.y));
       if (obj.end) consider(...toWorld(obj.end.x, obj.end.y));
       if (obj.position) consider(...toWorld(obj.position.x, obj.position.y));
+    }
+    for (const element of buildingModel?.elements ?? []) {
+      for (let i = 0; i < element.positions.length; i += 3) {
+        const [wx, , wz] = ifcToWorld(element.positions[i], element.positions[i + 1], element.positions[i + 2]);
+        consider(wx, wz);
+      }
     }
     const hasBounds = Number.isFinite(bounds.minX);
     const centerX = hasBounds ? (bounds.minX + bounds.maxX) / 2 : 0;
@@ -142,9 +195,39 @@ export function Scene3DView({ projectId }: { projectId: string }) {
     grid.position.set(centerX, 0, centerZ);
     scene.add(grid);
 
-    const disposables: { geometry: THREE.BufferGeometry; material: THREE.Material }[] = [];
+    const geometries: THREE.BufferGeometry[] = [];
+    const materials = new Set<THREE.Material>();
 
-    for (const obj of objects) {
+    if (buildingModel) {
+      const buildingMaterial = new THREE.MeshStandardMaterial({
+        color: 0xcbd5e1,
+        metalness: 0.05,
+        roughness: 0.9,
+        transparent: true,
+        opacity: 0.55,
+        side: THREE.DoubleSide,
+      });
+      materials.add(buildingMaterial);
+
+      for (const element of buildingModel.elements) {
+        const worldPositions = new Float32Array(element.positions.length);
+        for (let i = 0; i < element.positions.length; i += 3) {
+          const [wx, wy, wz] = ifcToWorld(element.positions[i], element.positions[i + 1], element.positions[i + 2]);
+          worldPositions[i] = wx;
+          worldPositions[i + 1] = wy;
+          worldPositions[i + 2] = wz;
+        }
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute("position", new THREE.BufferAttribute(worldPositions, 3));
+        geometry.setIndex(element.indices);
+        geometry.computeVertexNormals();
+        const mesh = new THREE.Mesh(geometry, buildingMaterial);
+        scene.add(mesh);
+        geometries.push(geometry);
+      }
+    }
+
+    for (const obj of objects ?? []) {
       const color = TYPE_COLORS[obj.type];
 
       if (obj.start && obj.end) {
@@ -177,7 +260,8 @@ export function Scene3DView({ projectId }: { projectId: string }) {
 
         mesh.position.set((sx + ex) / 2, INSTALL_HEIGHT_M, (sz + ez) / 2);
         scene.add(mesh);
-        disposables.push({ geometry, material });
+        geometries.push(geometry);
+        materials.add(material);
       } else if (obj.position) {
         const [px, pz] = toWorld(obj.position.x, obj.position.y);
         const size = obj.type === "Cta" ? 0.6 : 0.3;
@@ -187,7 +271,8 @@ export function Scene3DView({ projectId }: { projectId: string }) {
         mesh.position.set(px, INSTALL_HEIGHT_M, pz);
         mesh.rotation.y = -obj.rotationRad;
         scene.add(mesh);
-        disposables.push({ geometry, material });
+        geometries.push(geometry);
+        materials.add(material);
       }
     }
 
@@ -213,14 +298,17 @@ export function Scene3DView({ projectId }: { projectId: string }) {
       controls.dispose();
       renderer.dispose();
       container.removeChild(renderer.domElement);
-      for (const { geometry, material } of disposables) {
+      for (const geometry of geometries) {
         geometry.dispose();
+      }
+      for (const material of materials) {
         material.dispose();
       }
     };
-  }, [calibration, objects]);
+  }, [calibration, objects, buildingModel]);
 
   const usedTypes = objects ? [...new Set(objects.map((o) => o.type))] : [];
+  const hasBuilding = !!(buildingModel && buildingModel.elements.length > 0);
 
   return (
     <div className="flex flex-1 flex-col gap-3">
@@ -238,7 +326,19 @@ export function Scene3DView({ projectId }: { projectId: string }) {
             ))}
           </select>
         )}
-        {usedTypes.length > 0 && (
+
+        <label className="flex cursor-pointer items-center gap-1.5 rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-sm text-slate-200 hover:border-sky-500 hover:text-sky-300">
+          {uploadingBuildingModel ? "Import…" : buildingModel ? "⇪ Remplacer le bâtiment (IFC)" : "⇪ Importer le bâtiment (IFC)"}
+          <input
+            type="file"
+            accept=".ifc"
+            className="hidden"
+            disabled={uploadingBuildingModel}
+            onChange={onBuildingModelFileChange}
+          />
+        </label>
+
+        {(usedTypes.length > 0 || hasBuilding) && (
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
             {usedTypes.map((t) => (
               <span key={t} className="flex items-center gap-1.5">
@@ -249,12 +349,37 @@ export function Scene3DView({ projectId }: { projectId: string }) {
                 {TYPE_LABELS[t]}
               </span>
             ))}
+            {hasBuilding && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-2.5 w-2.5 rounded-sm bg-slate-400" />
+                Bâtiment (IFC)
+              </span>
+            )}
           </div>
         )}
         <span className="ml-auto text-xs text-slate-500">
           Hauteur d&apos;installation par défaut&nbsp;: {INSTALL_HEIGHT_M} m
         </span>
       </div>
+
+      {buildingModelError && (
+        <div className="flex items-center gap-2 rounded border border-rose-900 bg-rose-950/30 px-3 py-1.5 text-xs text-rose-300">
+          <span>{buildingModelError}</span>
+          <button
+            type="button"
+            onClick={() => setBuildingModelReloadToken((t) => t + 1)}
+            className="ml-auto underline hover:text-rose-200"
+          >
+            Réessayer
+          </button>
+        </div>
+      )}
+      {hasBuilding && (
+        <p className="text-xs text-slate-500">
+          « {buildingModel!.fileName} » importé — son repère n&apos;est pas recalé automatiquement sur celui du plan 2D,
+          les deux couches peuvent apparaître décalées l&apos;une de l&apos;autre.
+        </p>
+      )}
 
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-950">
         {loading && (
@@ -265,17 +390,17 @@ export function Scene3DView({ projectId }: { projectId: string }) {
             {error}
           </div>
         )}
-        {!loading && !error && drawings?.length === 0 && (
+        {!loading && !error && !hasBuilding && drawings?.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-slate-500">
-            Importez d&apos;abord un plan dans l&apos;onglet Plan.
+            Importez d&apos;abord un plan (onglet Plan) ou un modèle de bâtiment IFC ci-dessus.
           </div>
         )}
-        {!loading && !error && selectedDrawing && !calibration && (
+        {!loading && !error && !hasBuilding && drawings && drawings.length > 0 && selectedDrawing && !calibration && (
           <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-slate-500">
-            Calibrez ce plan (onglet Plan) avant d&apos;afficher la vue 3D — elle a besoin de mesures réelles.
+            Calibrez ce plan (onglet Plan) avant d&apos;afficher son réseau en 3D — ou importez un modèle de bâtiment IFC ci-dessus.
           </div>
         )}
-        {!loading && !error && calibration && objects?.length === 0 && (
+        {!loading && !error && !hasBuilding && calibration && objects?.length === 0 && (
           <div className="absolute inset-0 flex items-center justify-center px-6 text-center text-slate-500">
             Aucun objet CVC dessiné sur ce plan pour l&apos;instant.
           </div>

@@ -25,4 +25,8 @@
     <ProjectReference Include="..\Bim.Cvc.Domain\Bim.Cvc.Domain.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="Fixtures\sample-building.ifc" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
