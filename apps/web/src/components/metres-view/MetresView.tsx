@@ -5,6 +5,7 @@ import {
   fetchNomenclature,
   fetchProjectMetres,
   nomenclatureExportUrl,
+  projectReportUrl,
   type NomenclatureRowDto,
   type ProjectMetresDto,
 } from "@/lib/api-client";
@@ -105,6 +106,12 @@ export function MetresView({ projectId }: { projectId: string }) {
           {metres.drawingCount} plan{metres.drawingCount > 1 ? "s" : ""} pris en compte
         </p>
         <div className="flex gap-2">
+          <a
+            href={projectReportUrl(projectId)}
+            className="rounded border border-slate-600 px-2.5 py-1 text-xs font-medium text-slate-300 hover:border-sky-500 hover:text-sky-300"
+          >
+            ⭳ Rapport PDF
+          </a>
           {rows.length > 0 && (
             <a
               href={nomenclatureExportUrl(projectId)}

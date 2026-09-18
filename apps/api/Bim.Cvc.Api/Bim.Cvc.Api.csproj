@@ -20,4 +20,13 @@
     <ProjectReference Include="..\Bim.Cvc.Infrastructure\Bim.Cvc.Infrastructure.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <EmbeddedResource Include="Projects\Fonts\LiberationSans-Regular.ttf">
+      <LogicalName>Bim.Cvc.Api.Projects.Fonts.LiberationSans-Regular.ttf</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="Projects\Fonts\LiberationSans-Bold.ttf">
+      <LogicalName>Bim.Cvc.Api.Projects.Fonts.LiberationSans-Bold.ttf</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
 </Project>

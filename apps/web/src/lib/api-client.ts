@@ -228,6 +228,11 @@ export function nomenclatureExportUrl(projectId: string): string {
   return `${API_BASE_URL}/api/v1/projects/${projectId}/nomenclature/export`;
 }
 
+/** Lot 2 — rapport PDF de synthèse du projet (métrés + nomenclature détaillée). */
+export function projectReportUrl(projectId: string): string {
+  return `${API_BASE_URL}/api/v1/projects/${projectId}/report`;
+}
+
 export async function uploadDrawing(projectId: string, file: File): Promise<DrawingDto> {
   const form = new FormData();
   form.append("file", file);

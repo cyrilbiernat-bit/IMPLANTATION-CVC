@@ -1,5 +1,6 @@
 <Solution>
   <Project Path="Bim.Cvc.Api/Bim.Cvc.Api.csproj" />
+  <Project Path="Bim.Cvc.Api.Tests/Bim.Cvc.Api.Tests.csproj" />
   <Project Path="Bim.Cvc.Application.Tests/Bim.Cvc.Application.Tests.csproj" />
   <Project Path="Bim.Cvc.Application/Bim.Cvc.Application.csproj" />
   <Project Path="Bim.Cvc.Domain/Bim.Cvc.Domain.csproj" />

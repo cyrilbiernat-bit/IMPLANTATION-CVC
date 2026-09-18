@@ -183,4 +183,26 @@ public sealed class ProjectsController(
             return NotFound();
         }
     }
+
+    /// <summary>Lot 2 — rapport PDF de synthèse du projet (métrés + nomenclature détaillée).</summary>
+    [HttpGet("{id:guid}/report")]
+    public IActionResult ExportReport(Guid id)
+    {
+        ProjectDto project;
+        ProjectMetresDto metres;
+        IReadOnlyList<NomenclatureRowDto> nomenclature;
+        try
+        {
+            project = ProjectDto.From(projectService.Get(id));
+            metres = ProjectMetresDto.From(metresService.Compute(id));
+            nomenclature = nomenclatureService.Compute(id).Select(NomenclatureRowDto.From).ToList();
+        }
+        catch (ProjectNotFoundException)
+        {
+            return NotFound();
+        }
+
+        var pdf = ProjectReportPdfWriter.Write(project, metres, nomenclature);
+        return File(pdf, "application/pdf", $"rapport-{id}.pdf");
+    }
 }
