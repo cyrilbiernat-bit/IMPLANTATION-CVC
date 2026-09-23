@@ -9,6 +9,7 @@ const TABS = [
   { href: (id: string) => `/projets/${id}/plan`, label: "Plan", suffix: "plan" },
   { href: (id: string) => `/projets/${id}/3d`, label: "Vue 3D", suffix: "3d" },
   { href: (id: string) => `/projets/${id}/metres`, label: "Métrés", suffix: "metres" },
+  { href: (id: string) => `/projets/${id}/assistant`, label: "Assistant IA", suffix: "assistant" },
 ];
 
 export function ProjectNav({ projectId, title }: { projectId: string; title: string }) {

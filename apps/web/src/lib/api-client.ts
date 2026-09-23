@@ -233,6 +233,31 @@ export function projectReportUrl(projectId: string): string {
   return `${API_BASE_URL}/api/v1/projects/${projectId}/report`;
 }
 
+export interface AssistantMessageDto {
+  role: "user" | "assistant";
+  content: string;
+}
+
+/** Lot 2 — assistant conversationnel : pose une question sur le projet et obtient une réponse. */
+export async function askAssistant(
+  projectId: string,
+  question: string,
+  history: AssistantMessageDto[],
+): Promise<string> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/assistant/ask`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ question, history }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la réponse de l'assistant (${res.status})`));
+  }
+
+  const body: { answer: string } = await res.json();
+  return body.answer;
+}
+
 export async function uploadDrawing(projectId: string, file: File): Promise<DrawingDto> {
   const form = new FormData();
   form.append("file", file);

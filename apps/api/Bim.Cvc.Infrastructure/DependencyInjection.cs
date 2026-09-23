@@ -12,6 +12,7 @@ public static class DependencyInjection
     {
         services.Configure<LocalStorageOptions>(configuration.GetSection("LocalStorage"));
         services.Configure<IfcExtractionOptions>(configuration.GetSection("IfcExtraction"));
+        services.Configure<AssistantOptions>(configuration.GetSection("Assistant"));
 
         var connectionString = configuration.GetConnectionString("BimCvc")
             ?? throw new InvalidOperationException(
@@ -37,6 +38,9 @@ public static class DependencyInjection
         services.AddScoped<IBuildingModelRepository, EfBuildingModelRepository>();
         services.AddScoped<IIfcGeometryExtractor, IfcOpenShellGeometryExtractor>();
         services.AddScoped<BuildingModelService>();
+
+        services.AddScoped<IAssistantChatClient, AnthropicAssistantChatClient>();
+        services.AddScoped<ProjectAssistantService>();
 
         return services;
     }

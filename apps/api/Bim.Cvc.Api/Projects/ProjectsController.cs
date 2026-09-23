@@ -15,6 +15,7 @@ public sealed class ProjectsController(
     DrawingService drawingService,
     LayerService layerService,
     BuildingModelService buildingModelService,
+    ProjectAssistantService assistantService,
     IDrawingRepository drawings) : ControllerBase
 {
     private const long MaxRequestBodySizeBytes = 100 * 1024 * 1024;
@@ -204,5 +205,33 @@ public sealed class ProjectsController(
 
         var pdf = ProjectReportPdfWriter.Write(project, metres, nomenclature);
         return File(pdf, "application/pdf", $"rapport-{id}.pdf");
+    }
+
+    /// <summary>Lot 2 — assistant conversationnel : pose une question sur le projet et obtient une réponse.</summary>
+    [HttpPost("{id:guid}/assistant/ask")]
+    public async Task<ActionResult<AskAssistantResponse>> AskAssistant(Guid id, AskAssistantRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Question))
+        {
+            return BadRequest(new { message = "La question ne peut pas être vide." });
+        }
+
+        var history = (request.History ?? [])
+            .Select(m => new AssistantMessage(m.Role, m.Content))
+            .ToList();
+
+        try
+        {
+            var answer = await assistantService.AskAsync(id, history, request.Question, ct);
+            return Ok(new AskAssistantResponse(answer));
+        }
+        catch (ProjectNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (AssistantUnavailableException ex)
+        {
+            return StatusCode(StatusCodes.Status503ServiceUnavailable, new { message = ex.Message });
+        }
     }
 }
