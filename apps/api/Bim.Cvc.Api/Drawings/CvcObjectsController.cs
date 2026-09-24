@@ -82,6 +82,42 @@ public sealed class CvcObjectsController(CvcObjectService service) : ControllerB
         }
     }
 
+    /// <summary>Trace automatiquement un réseau entre deux points (gaine directe ou coude à l'équerre).</summary>
+    [HttpPost("autoroute")]
+    public ActionResult<IReadOnlyList<CvcObjectDto>> AutoRoute(Guid drawingId, AutoRouteRequest request)
+    {
+        if (!Enum.TryParse<CvcObjectType>(request.DuctType, ignoreCase: true, out var ductType))
+        {
+            return BadRequest(new { message = $"Type de gaine inconnu : {request.DuctType}" });
+        }
+
+        try
+        {
+            var created = service.AutoRoute(
+                drawingId,
+                request.LayerId,
+                ductType,
+                new Point2D(request.Start.X, request.Start.Y),
+                new Point2D(request.End.X, request.End.Y),
+                request.WidthMm,
+                request.HeightMm,
+                request.DiameterMm,
+                request.DebitM3h,
+                request.VitesseMs,
+                request.PressionPa);
+
+            return Ok(created.Select(ToDto).ToList());
+        }
+        catch (DrawingNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (InvalidCvcObjectException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpDelete("{objectId:guid}")]
     public IActionResult Delete(Guid drawingId, Guid objectId)
     {

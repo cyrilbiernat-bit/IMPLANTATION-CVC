@@ -311,6 +311,34 @@ export async function createCvcObject(
   return res.json();
 }
 
+export interface AutoRouteInput {
+  ductType: "GaineRectangulaire" | "GaineCirculaire";
+  layerId: string;
+  start: PointDto;
+  end: PointDto;
+  widthMm?: number;
+  heightMm?: number;
+  diameterMm?: number;
+  debitM3h?: number;
+  vitesseMs?: number;
+  pressionPa?: number;
+}
+
+/** Trace automatiquement un réseau entre deux points (gaine directe ou coude à l'équerre). */
+export async function autoRouteDucts(drawingId: string, input: AutoRouteInput): Promise<CvcObjectDto[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/objects/autoroute`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec du tracé automatique (${res.status})`));
+  }
+
+  return res.json();
+}
+
 export async function deleteCvcObject(drawingId: string, objectId: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/objects/${objectId}`, {
     method: "DELETE",

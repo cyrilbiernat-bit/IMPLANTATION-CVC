@@ -221,6 +221,151 @@ public sealed class CvcObjectServiceTests
     }
 
     [Fact]
+    public void AddPointObject_inherits_cross_section_from_a_connected_duct()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+        var duct = sut.AddDuct(
+            drawingId, layerId, CvcObjectType.GaineCirculaire,
+            new Point2D(0, 0), new Point2D(50, 0), null, null, 315);
+
+        // À moins de 0,15 m (1,5 px à cette échelle) de l'extrémité de la gaine -> accroché.
+        var coude = sut.AddPointObject(drawingId, layerId, CvcObjectType.Coude, new Point2D(51, 0), 0);
+
+        Assert.Equal(315, coude.DiameterMm);
+        Assert.Contains(duct.Id, coude.ConnectedObjectIds);
+    }
+
+    [Fact]
+    public void AddPointObject_inherits_rectangular_cross_section_from_a_connected_duct()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+        sut.AddDuct(
+            drawingId, layerId, CvcObjectType.GaineRectangulaire,
+            new Point2D(0, 0), new Point2D(50, 0), widthMm: 400, heightMm: 250, diameterMm: null);
+
+        var te = sut.AddPointObject(drawingId, layerId, CvcObjectType.Te, new Point2D(0, 0), 0);
+
+        Assert.Equal(400, te.WidthMm);
+        Assert.Equal(250, te.HeightMm);
+    }
+
+    [Fact]
+    public void AddPointObject_does_not_inherit_a_cross_section_when_no_duct_is_nearby()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+
+        var coude = sut.AddPointObject(drawingId, layerId, CvcObjectType.Coude, new Point2D(500, 500), 0);
+
+        Assert.Null(coude.DiameterMm);
+        Assert.Null(coude.WidthMm);
+    }
+
+    [Fact]
+    public void AddPointObject_never_inherits_a_cross_section_for_a_non_fitting_type()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+        sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(50, 0), null, null, 315);
+
+        var bouche = sut.AddPointObject(drawingId, layerId, CvcObjectType.Bouche, new Point2D(0, 0), 0);
+
+        Assert.Null(bouche.DiameterMm);
+    }
+
+    [Fact]
+    public void AutoRoute_draws_a_single_duct_when_points_are_axis_aligned()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+
+        var created = sut.AutoRoute(
+            drawingId, layerId, CvcObjectType.GaineCirculaire,
+            new Point2D(0, 0), new Point2D(80, 0), null, null, 250);
+
+        var duct = Assert.Single(created);
+        Assert.Equal(CvcObjectType.GaineCirculaire, duct.Type);
+        Assert.Equal(250, duct.DiameterMm);
+    }
+
+    [Fact]
+    public void AutoRoute_inserts_an_elbow_at_the_corner_when_points_are_not_aligned()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+
+        var created = sut.AutoRoute(
+            drawingId, layerId, CvcObjectType.GaineRectangulaire,
+            new Point2D(0, 0), new Point2D(80, 60), 400, 250, null);
+
+        Assert.Equal(3, created.Count);
+        var (leg1, elbow, leg2) = (created[0], created[1], created[2]);
+        Assert.Equal(CvcObjectType.GaineRectangulaire, leg1.Type);
+        Assert.Equal(CvcObjectType.Coude, elbow.Type);
+        Assert.Equal(CvcObjectType.GaineRectangulaire, leg2.Type);
+
+        // Le coude relie les deux tronçons entre eux (accrochage automatique).
+        Assert.Contains(elbow.Id, leg1.ConnectedObjectIds);
+        Assert.Contains(elbow.Id, leg2.ConnectedObjectIds);
+        Assert.Contains(leg1.Id, elbow.ConnectedObjectIds);
+        Assert.Contains(leg2.Id, elbow.ConnectedObjectIds);
+
+        // Le coude reprend la section des gaines qu'il relie.
+        Assert.Equal(400, elbow.WidthMm);
+        Assert.Equal(250, elbow.HeightMm);
+
+        // Les deux tronçons couvrent bien tout le trajet, mis bout à bout.
+        var totalLength = sut.LengthMeters(leg1)!.Value + sut.LengthMeters(leg2)!.Value;
+        Assert.Equal(0.1 * (80 + 60), totalLength, precision: 6);
+    }
+
+    [Theory]
+    [InlineData(80, 60)]
+    [InlineData(-80, 60)]
+    [InlineData(80, -60)]
+    [InlineData(-80, -60)]
+    public void AutoRoute_produces_a_connected_elbow_in_every_quadrant(double dx, double dy)
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+
+        var created = sut.AutoRoute(
+            drawingId, layerId, CvcObjectType.GaineCirculaire,
+            new Point2D(100, 100), new Point2D(100 + dx, 100 + dy), null, null, 200);
+
+        Assert.Equal(3, created.Count);
+        var elbow = created[1];
+        Assert.Equal(CvcObjectType.Coude, elbow.Type);
+        Assert.Contains(created[0].Id, elbow.ConnectedObjectIds);
+        Assert.Contains(created[2].Id, elbow.ConnectedObjectIds);
+    }
+
+    [Fact]
+    public void AutoRoute_rejects_identical_start_and_end_points()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+
+        Assert.Throws<InvalidCvcObjectException>(() =>
+            sut.AutoRoute(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(5, 5), new Point2D(5, 5), null, null, 200));
+    }
+
+    [Fact]
+    public void AutoRoute_rejects_missing_dimensions_before_creating_anything()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+
+        Assert.Throws<InvalidCvcObjectException>(() =>
+            sut.AutoRoute(drawingId, layerId, CvcObjectType.GaineRectangulaire, new Point2D(0, 0), new Point2D(80, 60), null, null, null));
+
+        Assert.Empty(sut.GetByDrawing(drawingId));
+    }
+
+    [Fact]
+    public void AutoRoute_rejects_a_locked_layer()
+    {
+        var (sut, layers, drawingId, layerId) = CreateSut();
+        layers.Get(layerId)!.Locked = true;
+
+        Assert.Throws<InvalidCvcObjectException>(() =>
+            sut.AutoRoute(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(80, 60), null, null, 200));
+    }
+
+    [Fact]
     public void Remove_deletes_the_object_and_clears_references_to_it()
     {
         var (sut, _, drawingId, layerId) = CreateSut();

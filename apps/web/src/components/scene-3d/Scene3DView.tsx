@@ -22,22 +22,28 @@ import {
 const INSTALL_HEIGHT_M = 2.5;
 const MIN_CROSS_SECTION_MM = 100;
 
-// Les raccords (coude/té/réduction) ne mémorisent pas encore de section propre
-// dans le modèle de données (contrairement aux gaines) : on leur donne une
-// section par défaut plausible plutôt que d'attendre cette évolution du
-// modèle pour avoir un rendu 3D correct.
+// Section par défaut d'un raccord (coude/té/réduction) qui ne s'est raccroché
+// à aucune gaine dimensionnée — sinon on reprend le rayon réel hérité
+// (voir CvcObjectService.InheritCrossSection côté API) pour que le raccord
+// épouse le diamètre de la gaine à laquelle il se connecte.
 const FITTING_RADIUS_M = MIN_CROSS_SECTION_MM / 2000;
-const ELBOW_BEND_RADIUS_M = FITTING_RADIUS_M * 2.4;
+
+/** Rayon utilisé pour dessiner un raccord : sa section réelle si elle est connue, sinon la valeur par défaut. */
+function fittingRadiusM(obj: CvcObjectDto): number {
+  if (obj.diameterMm) return Math.max(obj.diameterMm, MIN_CROSS_SECTION_MM) / 2000;
+  if (obj.widthMm && obj.heightMm) return Math.max((obj.widthMm + obj.heightMm) / 2, MIN_CROSS_SECTION_MM) / 2000;
+  return FITTING_RADIUS_M;
+}
 
 /**
  * Coude 90° : quart de tore. `position` marque le coin intérieur du coude ;
- * les deux extrémités du tube se trouvent à `ELBOW_BEND_RADIUS_M` de là, le
+ * les deux extrémités du tube se trouvent à un rayon de cintrage de là, le
  * long de +X et de -Z locaux (avant rotation par `rotationRad`) — les mêmes
  * axes que les gaines rectilignes, pour que le raccord s'oriente de façon
  * cohérente avec elles une fois posé sur le plan.
  */
-function buildElbowGeometry(): THREE.BufferGeometry {
-  const geometry = new THREE.TorusGeometry(ELBOW_BEND_RADIUS_M, FITTING_RADIUS_M, 12, 24, Math.PI / 2);
+function buildElbowGeometry(radius: number): THREE.BufferGeometry {
+  const geometry = new THREE.TorusGeometry(radius * 2.4, radius, 12, 24, Math.PI / 2);
   geometry.rotateX(-Math.PI / 2);
   return geometry;
 }
@@ -47,14 +53,14 @@ function buildElbowGeometry(): THREE.BufferGeometry {
  * perpendiculaire vers -Z — deux cylindres plutôt qu'un maillage fusionné,
  * pour rester simple (pas de dépendance BufferGeometryUtils).
  */
-function buildTeeGeometries(): [THREE.BufferGeometry, THREE.BufferGeometry] {
-  const mainLength = ELBOW_BEND_RADIUS_M * 2.4;
-  const branchLength = ELBOW_BEND_RADIUS_M * 1.2;
+function buildTeeGeometries(radius: number): [THREE.BufferGeometry, THREE.BufferGeometry] {
+  const mainLength = radius * 2.4 * 2.4;
+  const branchLength = radius * 2.4 * 1.2;
 
-  const main = new THREE.CylinderGeometry(FITTING_RADIUS_M, FITTING_RADIUS_M, mainLength, 16);
+  const main = new THREE.CylinderGeometry(radius, radius, mainLength, 16);
   main.rotateZ(Math.PI / 2);
 
-  const branch = new THREE.CylinderGeometry(FITTING_RADIUS_M, FITTING_RADIUS_M, branchLength, 16);
+  const branch = new THREE.CylinderGeometry(radius, radius, branchLength, 16);
   branch.rotateX(Math.PI / 2);
   branch.translate(0, 0, -branchLength / 2);
 
@@ -62,9 +68,9 @@ function buildTeeGeometries(): [THREE.BufferGeometry, THREE.BufferGeometry] {
 }
 
 /** Réduction : tronc de cône reliant deux sections, centré sur `position` le long de l'axe X local. */
-function buildReducerGeometry(): THREE.BufferGeometry {
-  const length = ELBOW_BEND_RADIUS_M * 1.6;
-  const geometry = new THREE.CylinderGeometry(FITTING_RADIUS_M * 0.4, FITTING_RADIUS_M, length, 20);
+function buildReducerGeometry(radius: number): THREE.BufferGeometry {
+  const length = radius * 2.4 * 1.6;
+  const geometry = new THREE.CylinderGeometry(radius * 0.4, radius, length, 20);
   geometry.rotateZ(Math.PI / 2);
   return geometry;
 }
@@ -316,12 +322,13 @@ export function Scene3DView({ projectId }: { projectId: string }) {
         const material = new THREE.MeshStandardMaterial({ color, metalness: 0.3, roughness: 0.5 });
         materials.add(material);
 
+        const radius = fittingRadiusM(obj);
         const fittingGeometries =
           obj.type === "Coude"
-            ? [buildElbowGeometry()]
+            ? [buildElbowGeometry(radius)]
             : obj.type === "Te"
-              ? buildTeeGeometries()
-              : [buildReducerGeometry()];
+              ? buildTeeGeometries(radius)
+              : [buildReducerGeometry(radius)];
 
         for (const geometry of fittingGeometries) {
           const mesh = new THREE.Mesh(geometry, material);

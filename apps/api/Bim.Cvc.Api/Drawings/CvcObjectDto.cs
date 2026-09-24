@@ -16,6 +16,18 @@ public sealed record CreateCvcObjectRequest(
     double? VitesseMs,
     double? PressionPa);
 
+public sealed record AutoRouteRequest(
+    string DuctType,
+    Guid LayerId,
+    PointDto Start,
+    PointDto End,
+    double? WidthMm,
+    double? HeightMm,
+    double? DiameterMm,
+    double? DebitM3h,
+    double? VitesseMs,
+    double? PressionPa);
+
 public sealed record CvcObjectDto(
     Guid Id,
     Guid DrawingId,

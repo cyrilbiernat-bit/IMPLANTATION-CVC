@@ -165,6 +165,41 @@ public sealed class EfCoreRepositoriesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task GetByDrawing_sees_objects_added_earlier_in_the_same_unit_of_work_before_SaveChanges()
+    {
+        // Reproduit exactement ce dont a besoin l'autorouting (CvcObjectService.AutoRoute) :
+        // plusieurs objets créés dans la même requête HTTP, donc avant l'unique
+        // SaveChangesAsync de fin de requête (SaveChangesMiddleware) — une requête SQL
+        // seule ne verrait pas le premier objet en interrogeant après coup.
+        await using var db = CreateContext();
+        ICvcObjectRepository objectRepo = new EfCvcObjectRepository(db);
+
+        var project = new Project { Name = "Autorouting" };
+        db.Projects.Add(project);
+        var drawing = new Drawing { ProjectId = project.Id, FileName = "plan.pdf", StoragePath = "memory://x", NbPages = 1 };
+        db.Drawings.Add(drawing);
+        var layer = new Layer { DrawingId = drawing.Id, Name = "Calque 1", Order = 0 };
+        db.Layers.Add(layer);
+
+        var firstLeg = new CvcObject
+        {
+            DrawingId = drawing.Id,
+            LayerId = layer.Id,
+            Type = CvcObjectType.GaineRectangulaire,
+            Start = new Point2D(0, 0),
+            End = new Point2D(50, 0),
+            WidthMm = 400,
+            HeightMm = 250,
+        };
+        objectRepo.Add(firstLeg);
+
+        // Pas de SaveChangesAsync ici — c'est exactement le point testé.
+        var seenBeforeSave = objectRepo.GetByDrawing(drawing.Id);
+
+        Assert.Contains(seenBeforeSave, o => o.Id == firstLeg.Id);
+    }
+
+    [Fact]
     public async Task Repositories_implement_the_application_interfaces_against_a_real_database()
     {
         await using var db = CreateContext();

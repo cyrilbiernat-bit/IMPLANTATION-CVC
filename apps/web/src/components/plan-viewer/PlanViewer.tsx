@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PageViewport, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
+  autoRouteDucts,
   calibrateDrawing,
   createCvcObject,
   createLayer,
@@ -211,6 +212,10 @@ export function PlanViewer({ projectId }: { projectId: string }) {
   const [objects, setObjects] = useState<CvcObjectDto[]>([]);
   const [activeTool, setActiveTool] = useState<CvcObjectType | null>(null);
   const [ductDraft, setDuctDraft] = useState<{ start?: DrawingPoint; end?: DrawingPoint }>({});
+  const [autorouteActive, setAutorouteActive] = useState(false);
+  const [autorouteDuctType, setAutorouteDuctType] = useState<"GaineRectangulaire" | "GaineCirculaire">(
+    "GaineRectangulaire",
+  );
   const [ductWidthInput, setDuctWidthInput] = useState("400");
   const [ductHeightInput, setDuctHeightInput] = useState("250");
   const [ductDiameterInput, setDuctDiameterInput] = useState("315");
@@ -423,7 +428,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
   const rotate = () => setRotation((r) => (r + 90) % 360);
   const goToPage = (n: number) => setCurrentPage(Math.min(numPages, Math.max(1, n)));
 
-  const isInteractiveMode = calibrationMode !== "idle" || !!activeTool;
+  const isInteractiveMode = calibrationMode !== "idle" || !!activeTool || autorouteActive;
 
   // Pan : cliquer-glisser dans la zone de visualisation (désactivé pendant
   // la calibration et le dessin, pour ne pas confondre un déplacement avec
@@ -509,6 +514,17 @@ export function PlanViewer({ projectId }: { projectId: string }) {
 
   const startTool = (type: CvcObjectType) => {
     setActiveTool((prev) => (prev === type ? null : type));
+    setAutorouteActive(false);
+    setDuctDraft({});
+    setObjectError(null);
+    setCalibrationMode("idle");
+    setPickedPoints({});
+    setSelectedObjectId(null);
+  };
+
+  const startAutoroute = () => {
+    setAutorouteActive((prev) => !prev);
+    setActiveTool(null);
     setDuctDraft({});
     setObjectError(null);
     setCalibrationMode("idle");
@@ -518,6 +534,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
 
   const cancelTool = () => {
     setActiveTool(null);
+    setAutorouteActive(false);
     setDuctDraft({});
     setObjectError(null);
   };
@@ -623,6 +640,62 @@ export function PlanViewer({ projectId }: { projectId: string }) {
     }
   };
 
+  const submitAutoroute = async () => {
+    if (!drawingId || !activeLayerId || !ductDraft.start || !ductDraft.end) return;
+    const isRect = autorouteDuctType === "GaineRectangulaire";
+
+    let widthMm: number | undefined;
+    let heightMm: number | undefined;
+    let diameterMm: number | undefined;
+
+    if (isRect) {
+      widthMm = Number(ductWidthInput.replace(",", "."));
+      heightMm = Number(ductHeightInput.replace(",", "."));
+      if (!Number.isFinite(widthMm) || widthMm <= 0 || !Number.isFinite(heightMm) || heightMm <= 0) {
+        setObjectError("Largeur et hauteur doivent être des nombres positifs (mm).");
+        return;
+      }
+    } else {
+      diameterMm = Number(ductDiameterInput.replace(",", "."));
+      if (!Number.isFinite(diameterMm) || diameterMm <= 0) {
+        setObjectError("Le diamètre doit être un nombre positif (mm).");
+        return;
+      }
+    }
+
+    const parseOptional = (raw: string) => {
+      if (!raw.trim()) return undefined;
+      const n = Number(raw.replace(",", "."));
+      return Number.isFinite(n) && n > 0 ? n : undefined;
+    };
+
+    setObjectSaving(true);
+    setObjectError(null);
+    try {
+      const created = await autoRouteDucts(drawingId, {
+        ductType: autorouteDuctType,
+        layerId: activeLayerId,
+        start: { x: ductDraft.start[0], y: ductDraft.start[1] },
+        end: { x: ductDraft.end[0], y: ductDraft.end[1] },
+        widthMm,
+        heightMm,
+        diameterMm,
+        debitM3h: parseOptional(ductDebitInput),
+        vitesseMs: parseOptional(ductVitesseInput),
+        pressionPa: parseOptional(ductPressionInput),
+      });
+      created.forEach(addCreatedObject);
+      setDuctDraft({});
+      setDuctDebitInput("");
+      setDuctVitesseInput("");
+      setDuctPressionInput("");
+    } catch (err) {
+      setObjectError(err instanceof Error ? err.message : "Échec du tracé automatique.");
+    } finally {
+      setObjectSaving(false);
+    }
+  };
+
   const deleteSelected = async () => {
     if (!drawingId || !selectedObjectId) return;
     setDeletingObject(true);
@@ -703,6 +776,12 @@ export function PlanViewer({ projectId }: { projectId: string }) {
         return;
       }
 
+      if (autorouteActive && !objectSaving) {
+        const snapped = findSnapTarget(rawPoint, visibleObjects, toleranceUnits) ?? rawPoint;
+        setDuctDraft((prev) => (!prev.start ? { start: snapped } : { ...prev, end: snapped }));
+        return;
+      }
+
       if (activeTool && !objectSaving) {
         const snapped = findSnapTarget(rawPoint, visibleObjects, toleranceUnits) ?? rawPoint;
         if (DUCT_TYPES.has(activeTool)) {
@@ -715,7 +794,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
 
       setSelectedObjectId(null);
     },
-    [calibrationMode, activeTool, objectSaving, visibleObjects, placePointObject, registerCalibrationPoint],
+    [calibrationMode, activeTool, autorouteActive, objectSaving, visibleObjects, placePointObject, registerCalibrationPoint],
   );
 
   const onPdfBackgroundClick = (e: React.MouseEvent<SVGRectElement>) => {
@@ -832,6 +911,17 @@ export function PlanViewer({ projectId }: { projectId: string }) {
         </div>
       )}
 
+      {autorouteActive && !ductDraft.end && (
+        <div className="flex items-center gap-2 border-b border-indigo-800 bg-indigo-950/30 px-3 py-1.5 text-xs text-indigo-300">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-indigo-400" />
+          {!ductDraft.start
+            ? "Autorouting — cliquez le point de départ du tracé."
+            : "Cliquez le point d'arrivée : le trajet sera tracé automatiquement, avec un coude si besoin."}
+          <button type="button" onClick={cancelTool} className="ml-auto text-indigo-400 underline">
+            Annuler
+          </button>
+        </div>
+      )}
       {activeTool && DUCT_TYPES.has(activeTool) && !ductDraft.end && (
         <div className="flex items-center gap-2 border-b border-teal-800 bg-teal-950/30 px-3 py-1.5 text-xs text-teal-300">
           <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-teal-400" />
@@ -851,9 +941,12 @@ export function PlanViewer({ projectId }: { projectId: string }) {
           </button>
         </div>
       )}
-      {ductDraft.start && ductDraft.end && activeTool && (
+      {ductDraft.start && ductDraft.end && (activeTool || autorouteActive) && (
         <DuctDimensionsBar
-          isCircular={activeTool === "GaineCirculaire"}
+          isCircular={autorouteActive ? autorouteDuctType === "GaineCirculaire" : activeTool === "GaineCirculaire"}
+          ductTypeToggle={
+            autorouteActive ? { value: autorouteDuctType, onChange: setAutorouteDuctType } : undefined
+          }
           widthInput={ductWidthInput}
           heightInput={ductHeightInput}
           diameterInput={ductDiameterInput}
@@ -868,7 +961,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
           onPressionChange={setDuctPressionInput}
           saving={objectSaving}
           error={objectError}
-          onConfirm={submitDuct}
+          onConfirm={autorouteActive ? submitAutoroute : submitDuct}
           onCancel={() => setDuctDraft({})}
         />
       )}
@@ -888,6 +981,8 @@ export function PlanViewer({ projectId }: { projectId: string }) {
         <ToolDock
           activeTool={activeTool}
           onSelect={startTool}
+          autorouteActive={autorouteActive}
+          onToggleAutoroute={startAutoroute}
           disabled={drawingToolsDisabled}
           disabledReason={
             !calibration
@@ -1099,11 +1194,15 @@ export function PlanViewer({ projectId }: { projectId: string }) {
 function ToolDock({
   activeTool,
   onSelect,
+  autorouteActive,
+  onToggleAutoroute,
   disabled,
   disabledReason,
 }: {
   activeTool: CvcObjectType | null;
   onSelect: (type: CvcObjectType) => void;
+  autorouteActive: boolean;
+  onToggleAutoroute: () => void;
   disabled: boolean;
   disabledReason?: string;
 }) {
@@ -1127,6 +1226,24 @@ function ToolDock({
           <span className="mt-0.5">{tool.short}</span>
         </button>
       ))}
+      <div className="my-1 h-px w-9 bg-slate-700" />
+      <button
+        type="button"
+        data-testid="tool-Autoroute"
+        disabled={disabled}
+        onClick={onToggleAutoroute}
+        title={
+          disabled
+            ? (disabledReason ?? "Indisponible")
+            : "Autorouting — trace automatiquement une gaine entre deux points, avec un coude si besoin"
+        }
+        className={`flex h-11 w-13 flex-col items-center justify-center rounded text-[9.5px] leading-none transition-colors disabled:cursor-not-allowed disabled:opacity-30 ${
+          autorouteActive ? "bg-indigo-600 text-white" : "bg-slate-900 text-slate-300 hover:bg-slate-700"
+        }`}
+      >
+        <span className="text-base">⤳</span>
+        <span className="mt-0.5">Auto</span>
+      </button>
     </div>
   );
 }
@@ -1524,6 +1641,7 @@ function FittingIcon({
 
 function DuctDimensionsBar({
   isCircular,
+  ductTypeToggle,
   widthInput,
   heightInput,
   diameterInput,
@@ -1542,6 +1660,11 @@ function DuctDimensionsBar({
   onCancel,
 }: {
   isCircular: boolean;
+  /** Présent uniquement en mode autorouting : le type de gaine n'est pas fixé par l'outil choisi. */
+  ductTypeToggle?: {
+    value: "GaineRectangulaire" | "GaineCirculaire";
+    onChange: (v: "GaineRectangulaire" | "GaineCirculaire") => void;
+  };
   widthInput: string;
   heightInput: string;
   diameterInput: string;
@@ -1562,6 +1685,30 @@ function DuctDimensionsBar({
   return (
     <div className="flex flex-wrap items-center gap-2 border-b border-teal-800 bg-teal-950/30 px-3 py-2 text-sm text-teal-200">
       <span className="text-xs">Dimensions de la gaine&nbsp;:</span>
+      {ductTypeToggle && (
+        <div className="flex overflow-hidden rounded border border-teal-700 text-xs">
+          <button
+            type="button"
+            data-testid="autoroute-ducttype-rect"
+            onClick={() => ductTypeToggle.onChange("GaineRectangulaire")}
+            className={`px-2 py-1 ${
+              ductTypeToggle.value === "GaineRectangulaire" ? "bg-teal-600 text-slate-950" : "text-teal-300 hover:bg-teal-900"
+            }`}
+          >
+            ▭ Rect.
+          </button>
+          <button
+            type="button"
+            data-testid="autoroute-ducttype-circ"
+            onClick={() => ductTypeToggle.onChange("GaineCirculaire")}
+            className={`px-2 py-1 ${
+              ductTypeToggle.value === "GaineCirculaire" ? "bg-teal-600 text-slate-950" : "text-teal-300 hover:bg-teal-900"
+            }`}
+          >
+            ◯ Circ.
+          </button>
+        </div>
+      )}
       {isCircular ? (
         <>
           <input
