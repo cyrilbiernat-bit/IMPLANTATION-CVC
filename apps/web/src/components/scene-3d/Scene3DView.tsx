@@ -22,6 +22,53 @@ import {
 const INSTALL_HEIGHT_M = 2.5;
 const MIN_CROSS_SECTION_MM = 100;
 
+// Les raccords (coude/té/réduction) ne mémorisent pas encore de section propre
+// dans le modèle de données (contrairement aux gaines) : on leur donne une
+// section par défaut plausible plutôt que d'attendre cette évolution du
+// modèle pour avoir un rendu 3D correct.
+const FITTING_RADIUS_M = MIN_CROSS_SECTION_MM / 2000;
+const ELBOW_BEND_RADIUS_M = FITTING_RADIUS_M * 2.4;
+
+/**
+ * Coude 90° : quart de tore. `position` marque le coin intérieur du coude ;
+ * les deux extrémités du tube se trouvent à `ELBOW_BEND_RADIUS_M` de là, le
+ * long de +X et de -Z locaux (avant rotation par `rotationRad`) — les mêmes
+ * axes que les gaines rectilignes, pour que le raccord s'oriente de façon
+ * cohérente avec elles une fois posé sur le plan.
+ */
+function buildElbowGeometry(): THREE.BufferGeometry {
+  const geometry = new THREE.TorusGeometry(ELBOW_BEND_RADIUS_M, FITTING_RADIUS_M, 12, 24, Math.PI / 2);
+  geometry.rotateX(-Math.PI / 2);
+  return geometry;
+}
+
+/**
+ * Té/piquage : un tronçon principal le long de l'axe X, une dérivation
+ * perpendiculaire vers -Z — deux cylindres plutôt qu'un maillage fusionné,
+ * pour rester simple (pas de dépendance BufferGeometryUtils).
+ */
+function buildTeeGeometries(): [THREE.BufferGeometry, THREE.BufferGeometry] {
+  const mainLength = ELBOW_BEND_RADIUS_M * 2.4;
+  const branchLength = ELBOW_BEND_RADIUS_M * 1.2;
+
+  const main = new THREE.CylinderGeometry(FITTING_RADIUS_M, FITTING_RADIUS_M, mainLength, 16);
+  main.rotateZ(Math.PI / 2);
+
+  const branch = new THREE.CylinderGeometry(FITTING_RADIUS_M, FITTING_RADIUS_M, branchLength, 16);
+  branch.rotateX(Math.PI / 2);
+  branch.translate(0, 0, -branchLength / 2);
+
+  return [main, branch];
+}
+
+/** Réduction : tronc de cône reliant deux sections, centré sur `position` le long de l'axe X local. */
+function buildReducerGeometry(): THREE.BufferGeometry {
+  const length = ELBOW_BEND_RADIUS_M * 1.6;
+  const geometry = new THREE.CylinderGeometry(FITTING_RADIUS_M * 0.4, FITTING_RADIUS_M, length, 20);
+  geometry.rotateZ(Math.PI / 2);
+  return geometry;
+}
+
 const TYPE_COLORS: Record<CvcObjectType, number> = {
   GaineRectangulaire: 0x0d9488,
   GaineCirculaire: 0x14b8a6,
@@ -262,6 +309,27 @@ export function Scene3DView({ projectId }: { projectId: string }) {
         scene.add(mesh);
         geometries.push(geometry);
         materials.add(material);
+      } else if (obj.position && (obj.type === "Coude" || obj.type === "Te" || obj.type === "Reduction")) {
+        // Raccords : une géométrie qui se reconnaît (coude cintré, té à
+        // dérivation, réduction conique) plutôt qu'un cube générique.
+        const [px, pz] = toWorld(obj.position.x, obj.position.y);
+        const material = new THREE.MeshStandardMaterial({ color, metalness: 0.3, roughness: 0.5 });
+        materials.add(material);
+
+        const fittingGeometries =
+          obj.type === "Coude"
+            ? [buildElbowGeometry()]
+            : obj.type === "Te"
+              ? buildTeeGeometries()
+              : [buildReducerGeometry()];
+
+        for (const geometry of fittingGeometries) {
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.position.set(px, INSTALL_HEIGHT_M, pz);
+          mesh.rotation.y = -obj.rotationRad;
+          scene.add(mesh);
+          geometries.push(geometry);
+        }
       } else if (obj.position) {
         const [px, pz] = toWorld(obj.position.x, obj.position.y);
         const size = obj.type === "Cta" ? 0.6 : 0.3;
