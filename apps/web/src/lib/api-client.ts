@@ -67,6 +67,16 @@ export interface NomenclatureRowDto {
   insulationAreaM2: number | null;
 }
 
+export interface ComplianceFindingDto {
+  objectId: string;
+  drawingFileName: string;
+  type: CvcObjectType;
+  severity: "Warning" | "Critical";
+  ruleCode: string;
+  message: string;
+  value: number;
+}
+
 export interface DrawingDto {
   id: string;
   projectId: string;
@@ -226,6 +236,17 @@ export async function fetchNomenclature(projectId: string): Promise<Nomenclature
 
 export function nomenclatureExportUrl(projectId: string): string {
   return `${API_BASE_URL}/api/v1/projects/${projectId}/nomenclature/export`;
+}
+
+/** Lot 2 — vérification réglementaire automatique (vitesse en gaine, rapport d'aspect). */
+export async function fetchCompliance(projectId: string): Promise<ComplianceFindingDto[]> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/compliance`);
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la vérification réglementaire (${res.status})`));
+  }
+
+  return res.json();
 }
 
 /** Lot 2 — rapport PDF de synthèse du projet (métrés + nomenclature détaillée). */

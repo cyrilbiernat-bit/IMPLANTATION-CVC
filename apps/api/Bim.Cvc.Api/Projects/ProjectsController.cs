@@ -16,6 +16,7 @@ public sealed class ProjectsController(
     LayerService layerService,
     BuildingModelService buildingModelService,
     ProjectAssistantService assistantService,
+    NetworkComplianceService complianceService,
     IDrawingRepository drawings) : ControllerBase
 {
     private const long MaxRequestBodySizeBytes = 100 * 1024 * 1024;
@@ -139,6 +140,20 @@ public sealed class ProjectsController(
         var csv = NomenclatureCsvWriter.Write(rows);
         var bytes = Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes(csv)).ToArray();
         return File(bytes, "text/csv", $"nomenclature-{id}.csv");
+    }
+
+    /// <summary>Lot 2 — vérification réglementaire automatique (vitesse en gaine, rapport d'aspect) sur le réseau déjà posé.</summary>
+    [HttpGet("{id:guid}/compliance")]
+    public ActionResult<IReadOnlyList<ComplianceFindingDto>> Compliance(Guid id)
+    {
+        try
+        {
+            return Ok(complianceService.Check(id).Select(ComplianceFindingDto.From).ToList());
+        }
+        catch (ProjectNotFoundException)
+        {
+            return NotFound();
+        }
     }
 
     /// <summary>

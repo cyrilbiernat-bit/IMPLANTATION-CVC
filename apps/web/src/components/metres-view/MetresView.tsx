@@ -2,13 +2,20 @@
 
 import { useEffect, useState } from "react";
 import {
+  fetchCompliance,
   fetchNomenclature,
   fetchProjectMetres,
   nomenclatureExportUrl,
   projectReportUrl,
+  type ComplianceFindingDto,
   type NomenclatureRowDto,
   type ProjectMetresDto,
 } from "@/lib/api-client";
+
+const SEVERITY_STYLES: Record<ComplianceFindingDto["severity"], { badge: string; dot: string; label: string }> = {
+  Critical: { badge: "border-rose-800 bg-rose-950/40 text-rose-300", dot: "bg-rose-400", label: "Critique" },
+  Warning: { badge: "border-amber-800 bg-amber-950/40 text-amber-300", dot: "bg-amber-400", label: "Avertissement" },
+};
 
 const ACCESSORY_LABELS: Record<string, string> = {
   Coude: "Coudes",
@@ -45,6 +52,7 @@ function dimensionsLabel(row: NomenclatureRowDto): string {
 export function MetresView({ projectId }: { projectId: string }) {
   const [metres, setMetres] = useState<ProjectMetresDto | null>(null);
   const [rows, setRows] = useState<NomenclatureRowDto[] | null>(null);
+  const [findings, setFindings] = useState<ComplianceFindingDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,13 +65,15 @@ export function MetresView({ projectId }: { projectId: string }) {
       setLoading(true);
       setError(null);
       try {
-        const [metresData, nomenclatureData] = await Promise.all([
+        const [metresData, nomenclatureData, complianceData] = await Promise.all([
           fetchProjectMetres(projectId),
           fetchNomenclature(projectId),
+          fetchCompliance(projectId),
         ]);
         if (!cancelled) {
           setMetres(metresData);
           setRows(nomenclatureData);
+          setFindings(complianceData);
         }
       } catch (err) {
         if (!cancelled) setError(err instanceof Error ? err.message : "Échec de la lecture des métrés.");
@@ -95,9 +105,18 @@ export function MetresView({ projectId }: { projectId: string }) {
     );
   }
 
-  if (!metres || !rows) return null;
+  if (!metres || !rows || !findings) return null;
 
   const hasQuantities = metres.totalDuctLengthMeters > 0 || metres.accessoryCounts.length > 0;
+  const findingsByObjectId = new Map<string, ComplianceFindingDto[]>();
+  for (const f of findings) {
+    findingsByObjectId.set(f.objectId, [...(findingsByObjectId.get(f.objectId) ?? []), f]);
+  }
+  const worstSeverity = (objectId: string): ComplianceFindingDto["severity"] | null => {
+    const forObject = findingsByObjectId.get(objectId);
+    if (!forObject?.length) return null;
+    return forObject.some((f) => f.severity === "Critical") ? "Critical" : "Warning";
+  };
 
   return (
     <div className="flex flex-1 flex-col gap-5 overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 p-5">
@@ -140,6 +159,38 @@ export function MetresView({ projectId }: { projectId: string }) {
             <MetricTile label="Longueur de réseau" value={`${numberFormatter.format(metres.totalDuctLengthMeters)} m`} />
             <MetricTile label="Surface à calorifuger" value={`${numberFormatter.format(metres.totalInsulationAreaM2)} m²`} />
             <MetricTile label="Poids estimé" value={`${numberFormatter.format(metres.totalWeightKg)} kg`} />
+          </div>
+
+          <div>
+            <h2 className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+              Vérifications réglementaires
+            </h2>
+            {findings.length === 0 ? (
+              <p className="flex items-center gap-1.5 text-sm text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+                Aucune anomalie détectée sur les vitesses en gaine et les rapports d&apos;aspect.
+              </p>
+            ) : (
+              <ul className="flex flex-col gap-1.5">
+                {findings.map((f, i) => {
+                  const style = SEVERITY_STYLES[f.severity];
+                  return (
+                    <li
+                      key={`${f.objectId}-${f.ruleCode}-${i}`}
+                      className={`flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded border px-3 py-1.5 text-sm ${style.badge}`}
+                    >
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${style.dot}`} />
+                      <span className="font-semibold">{style.label}</span>
+                      <span className="text-slate-300">
+                        {TYPE_LABELS[f.type] ?? f.type} — {f.drawingFileName}
+                      </span>
+                      <span className="font-mono text-xs text-slate-500">{f.objectId.slice(0, 8)}</span>
+                      <span className="w-full text-xs text-slate-400">{f.message}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
 
           <div>
@@ -189,7 +240,20 @@ export function MetresView({ projectId }: { projectId: string }) {
                       <td className="py-1.5 pr-3 font-mono text-slate-500">{r.objectId.slice(0, 8)}</td>
                       <td className="py-1.5 pr-3 text-slate-300">{r.drawingFileName}</td>
                       <td className="py-1.5 pr-3 text-slate-300">{r.layerName}</td>
-                      <td className="py-1.5 pr-3 text-slate-300">{TYPE_LABELS[r.type] ?? r.type}</td>
+                      <td className="py-1.5 pr-3 text-slate-300">
+                        <span className="inline-flex items-center gap-1.5">
+                          {TYPE_LABELS[r.type] ?? r.type}
+                          {(() => {
+                            const severity = worstSeverity(r.objectId);
+                            return severity ? (
+                              <span
+                                title={findingsByObjectId.get(r.objectId)!.map((f) => f.message).join(" ")}
+                                className={`h-1.5 w-1.5 rounded-full ${SEVERITY_STYLES[severity].dot}`}
+                              />
+                            ) : null;
+                          })()}
+                        </span>
+                      </td>
                       <td className="py-1.5 pr-3 font-mono text-slate-300">{dimensionsLabel(r)}</td>
                       <td className="py-1.5 pr-3 text-right font-mono text-slate-100">
                         {r.lengthMeters != null ? `${numberFormatter.format(r.lengthMeters)} m` : "—"}

@@ -9,12 +9,14 @@ import {
   createLayer,
   deleteCvcObject,
   deleteLayer,
+  fetchCompliance,
   fetchCvcObjects,
   fetchDrawingEntities,
   fetchLayers,
   updateLayer,
   uploadDrawing,
   type CalibrationDto,
+  type ComplianceFindingDto,
   type CreateDuctInput,
   type CreatePointObjectInput,
   type CvcObjectDto,
@@ -226,6 +228,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
   const [objectError, setObjectError] = useState<string | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [deletingObject, setDeletingObject] = useState(false);
+  const [complianceFindings, setComplianceFindings] = useState<ComplianceFindingDto[]>([]);
 
   // Calques (verrouillage + affichage indépendants des objets CVC).
   const [cvcLayers, setCvcLayers] = useState<LayerDto[]>([]);
@@ -768,6 +771,31 @@ export function PlanViewer({ projectId }: { projectId: string }) {
     [objects, layerById],
   );
 
+  // Vérification réglementaire (Lot 2) — alerte secondaire affichée sur le
+  // plan : un échec ne doit pas bloquer le dessin, donc on l'ignore silencieusement.
+  useEffect(() => {
+    let cancelled = false;
+    fetchCompliance(projectId)
+      .then((data) => {
+        if (!cancelled) setComplianceFindings(data);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId, objects]);
+
+  const findingSeverityByObjectId = useMemo(() => {
+    const map = new Map<string, ComplianceFindingDto["severity"]>();
+    for (const f of complianceFindings) {
+      const current = map.get(f.objectId);
+      if (!current || (current === "Warning" && f.severity === "Critical")) {
+        map.set(f.objectId, f.severity);
+      }
+    }
+    return map;
+  }, [complianceFindings]);
+
   /** Point de fond de plan cliqué : calibration, pose d'un objet CVC (avec accrochage), ou désélection. */
   const handleBackgroundPoint = useCallback(
     (rawPoint: DrawingPoint, toleranceUnits: number) => {
@@ -1070,6 +1098,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
                       onSelect={selectObject}
                       project={pdfProject}
                       markerSize={markerSize}
+                      findingSeverityByObjectId={findingSeverityByObjectId}
                     />
                     {pdfOverlay?.ductStart && (
                       <circle
@@ -1133,6 +1162,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
                     onSelect={selectObject}
                     project={cadProject}
                     markerSize={markerSize}
+                    findingSeverityByObjectId={findingSeverityByObjectId}
                   />
                   {ductDraft.start && (
                     <circle
@@ -1453,18 +1483,21 @@ function CvcObjectsLayer({
   onSelect,
   project,
   markerSize,
+  findingSeverityByObjectId,
 }: {
   objects: CvcObjectDto[];
   selectedObjectId: string | null;
   onSelect: (id: string) => void;
   project: Project;
   markerSize: number;
+  findingSeverityByObjectId: Map<string, ComplianceFindingDto["severity"]>;
 }) {
   return (
     <>
       {objects.map((obj) => {
         const selected = obj.id === selectedObjectId;
         const color = selected ? "#f59e0b" : "#0d9488";
+        const finding = findingSeverityByObjectId.get(obj.id);
         const onClick = (e: React.MouseEvent) => {
           e.stopPropagation();
           onSelect(obj.id);
@@ -1475,16 +1508,19 @@ function CvcObjectsLayer({
           const [x2, y2] = project(obj.end.x, obj.end.y);
           const isCircular = obj.type === "GaineCirculaire";
           return (
-            <g key={obj.id} onClick={onClick} style={{ cursor: "pointer" }}>
-              {/* zone de clic élargie, invisible : une gaine à 3px est difficile à viser précisément */}
-              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={16} vectorEffect="non-scaling-stroke" />
-              <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={selected ? 4 : 3} vectorEffect="non-scaling-stroke" />
-              {isCircular && (
-                <>
-                  <circle cx={x1} cy={y1} r={markerSize * 0.22} fill={color} />
-                  <circle cx={x2} cy={y2} r={markerSize * 0.22} fill={color} />
-                </>
-              )}
+            <g key={obj.id}>
+              <g onClick={onClick} style={{ cursor: "pointer" }}>
+                {/* zone de clic élargie, invisible : une gaine à 3px est difficile à viser précisément */}
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={16} vectorEffect="non-scaling-stroke" />
+                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={selected ? 4 : 3} vectorEffect="non-scaling-stroke" />
+                {isCircular && (
+                  <>
+                    <circle cx={x1} cy={y1} r={markerSize * 0.22} fill={color} />
+                    <circle cx={x2} cy={y2} r={markerSize * 0.22} fill={color} />
+                  </>
+                )}
+              </g>
+              {finding && <FindingBadge x={(x1 + x2) / 2} y={(y1 + y2) / 2 - markerSize * 0.6} size={markerSize} severity={finding} />}
             </g>
           );
         }
@@ -1495,13 +1531,11 @@ function CvcObjectsLayer({
 
           if (obj.type === "Coude" || obj.type === "Te" || obj.type === "Reduction") {
             return (
-              <g
-                key={obj.id}
-                onClick={onClick}
-                style={{ cursor: "pointer" }}
-                transform={`translate(${x} ${y}) rotate(${rotationDeg})`}
-              >
-                <FittingIcon type={obj.type} size={markerSize} color={color} />
+              <g key={obj.id}>
+                <g onClick={onClick} style={{ cursor: "pointer" }} transform={`translate(${x} ${y}) rotate(${rotationDeg})`}>
+                  <FittingIcon type={obj.type} size={markerSize} color={color} />
+                </g>
+                {finding && <FindingBadge x={x} y={y - markerSize * 0.7} size={markerSize} severity={finding} />}
               </g>
             );
           }
@@ -1509,34 +1543,32 @@ function CvcObjectsLayer({
           const size = obj.type === "Cta" ? markerSize * 1.8 : markerSize;
           const isBouche = obj.type === "Bouche";
           return (
-            <g
-              key={obj.id}
-              onClick={onClick}
-              style={{ cursor: "pointer" }}
-              transform={`translate(${x} ${y}) rotate(${rotationDeg})`}
-            >
-              <rect
-                x={-size / 2}
-                y={-size / 2}
-                width={size}
-                height={size}
-                fill={isBouche ? "white" : color}
-                fillOpacity={isBouche ? 0 : 0.85}
-                stroke={color}
-                strokeWidth={selected ? 2.5 : 1.5}
-                vectorEffect="non-scaling-stroke"
-              />
-              <text
-                x={0}
-                y={1}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fontSize={size * 0.4}
-                fill={isBouche ? color : "white"}
-                style={{ pointerEvents: "none" }}
-              >
-                {POINT_OBJECT_LABELS[obj.type]}
-              </text>
+            <g key={obj.id}>
+              <g onClick={onClick} style={{ cursor: "pointer" }} transform={`translate(${x} ${y}) rotate(${rotationDeg})`}>
+                <rect
+                  x={-size / 2}
+                  y={-size / 2}
+                  width={size}
+                  height={size}
+                  fill={isBouche ? "white" : color}
+                  fillOpacity={isBouche ? 0 : 0.85}
+                  stroke={color}
+                  strokeWidth={selected ? 2.5 : 1.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                <text
+                  x={0}
+                  y={1}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize={size * 0.4}
+                  fill={isBouche ? color : "white"}
+                  style={{ pointerEvents: "none" }}
+                >
+                  {POINT_OBJECT_LABELS[obj.type]}
+                </text>
+              </g>
+              {finding && <FindingBadge x={x} y={y - size * 0.7} size={markerSize} severity={finding} />}
             </g>
           );
         }
@@ -1544,6 +1576,29 @@ function CvcObjectsLayer({
         return null;
       })}
     </>
+  );
+}
+
+/** Marque un objet en anomalie (vérification réglementaire, Lot 2) — un badge rond avec un "!" plutôt qu'une couleur d'objet réinterprétée, pour ne pas entrer en conflit avec la couleur de sélection. */
+function FindingBadge({
+  x,
+  y,
+  size,
+  severity,
+}: {
+  x: number;
+  y: number;
+  size: number;
+  severity: ComplianceFindingDto["severity"];
+}) {
+  const fill = severity === "Critical" ? "#f43f5e" : "#f59e0b";
+  return (
+    <g transform={`translate(${x} ${y})`} style={{ pointerEvents: "none" }}>
+      <circle r={size * 0.34} fill={fill} stroke="white" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+      <text textAnchor="middle" dominantBaseline="central" fontSize={size * 0.44} fontWeight="bold" fill="white">
+        !
+      </text>
+    </g>
   );
 }
 

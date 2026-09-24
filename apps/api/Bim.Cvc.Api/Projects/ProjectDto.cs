@@ -62,3 +62,22 @@ public sealed record NomenclatureRowDto(
         row.WeightKg,
         row.InsulationAreaM2);
 }
+
+public sealed record ComplianceFindingDto(
+    Guid ObjectId,
+    string DrawingFileName,
+    string Type,
+    string Severity,
+    string RuleCode,
+    string Message,
+    double Value)
+{
+    public static ComplianceFindingDto From(ComplianceFinding finding) => new(
+        finding.ObjectId,
+        finding.DrawingFileName,
+        finding.Type.ToString(),
+        finding.Severity.ToString(),
+        finding.RuleCode,
+        finding.Message,
+        finding.Value);
+}

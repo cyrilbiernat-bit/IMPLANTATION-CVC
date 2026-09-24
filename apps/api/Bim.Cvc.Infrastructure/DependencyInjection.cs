@@ -34,6 +34,7 @@ public static class DependencyInjection
         services.AddScoped<CvcObjectService>();
         services.AddScoped<ProjectMetresService>();
         services.AddScoped<ProjectNomenclatureService>();
+        services.AddScoped<NetworkComplianceService>();
 
         services.AddScoped<IBuildingModelRepository, EfBuildingModelRepository>();
         services.AddScoped<IIfcGeometryExtractor, IfcOpenShellGeometryExtractor>();
