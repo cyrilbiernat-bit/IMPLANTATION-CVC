@@ -79,4 +79,20 @@ public sealed class BuildingModelService(
         _ = projects.Get(projectId);
         return repository.GetByProject(projectId);
     }
+
+    /// <summary>
+    /// Lot 2 — recalage interactif : fixe le décalage (mètres) à appliquer
+    /// aux coordonnées IFC pour aligner le modèle de bâtiment sur le réseau
+    /// CVC dessiné en 2D. L'entité est déjà suivie par le contexte EF (lue
+    /// via le même repository) ; la mutation est persistée par le
+    /// SaveChangesAsync de fin de requête, comme pour <see cref="DrawingService.Calibrate"/>.
+    /// </summary>
+    public BuildingModel SetAlignment(Guid projectId, double offsetXMeters, double offsetZMeters)
+    {
+        _ = projects.Get(projectId);
+        var model = repository.GetByProject(projectId) ?? throw new BuildingModelNotFoundException(projectId);
+        model.OffsetXMeters = offsetXMeters;
+        model.OffsetZMeters = offsetZMeters;
+        return model;
+    }
 }

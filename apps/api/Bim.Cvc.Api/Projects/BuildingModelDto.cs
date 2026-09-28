@@ -13,12 +13,18 @@ public sealed record BuildingModelDto(
     Guid ProjectId,
     string FileName,
     DateTimeOffset UploadedAt,
-    IReadOnlyList<BuildingElementDto> Elements)
+    IReadOnlyList<BuildingElementDto> Elements,
+    double OffsetXMeters,
+    double OffsetZMeters)
 {
     public static BuildingModelDto From(BuildingModel model) => new(
         model.Id,
         model.ProjectId,
         model.FileName,
         model.UploadedAt,
-        model.Elements.Select(BuildingElementDto.From).ToList());
+        model.Elements.Select(BuildingElementDto.From).ToList(),
+        model.OffsetXMeters,
+        model.OffsetZMeters);
 }
+
+public sealed record SetBuildingModelAlignmentRequest(double OffsetXMeters, double OffsetZMeters);

@@ -14,6 +14,8 @@ internal sealed class BuildingModelConfiguration : IEntityTypeConfiguration<Buil
         builder.HasKey(m => m.Id);
         builder.Property(m => m.FileName).IsRequired().HasMaxLength(500);
         builder.Property(m => m.UploadedAt).IsRequired();
+        builder.Property(m => m.OffsetXMeters).IsRequired().HasDefaultValue(0);
+        builder.Property(m => m.OffsetZMeters).IsRequired().HasDefaultValue(0);
 
         // La géométrie triangulée (souvent volumineuse) est écrite une
         // seule fois à l'import et jamais modifiée en place ensuite —

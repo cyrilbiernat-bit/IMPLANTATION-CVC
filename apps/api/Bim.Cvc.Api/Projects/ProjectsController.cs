@@ -200,6 +200,28 @@ public sealed class ProjectsController(
         }
     }
 
+    /// <summary>
+    /// Lot 2 — recalage interactif : fixe le décalage (mètres) entre le
+    /// repère du modèle de bâtiment IFC et celui du plan 2D calibré.
+    /// </summary>
+    [HttpPut("{id:guid}/building-model/alignment")]
+    public ActionResult<BuildingModelDto> SetBuildingModelAlignment(Guid id, SetBuildingModelAlignmentRequest request)
+    {
+        try
+        {
+            var model = buildingModelService.SetAlignment(id, request.OffsetXMeters, request.OffsetZMeters);
+            return Ok(BuildingModelDto.From(model));
+        }
+        catch (ProjectNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (BuildingModelNotFoundException)
+        {
+            return NotFound();
+        }
+    }
+
     /// <summary>Lot 2 — rapport PDF de synthèse du projet (métrés + nomenclature détaillée).</summary>
     [HttpGet("{id:guid}/report")]
     public IActionResult ExportReport(Guid id)

@@ -25,4 +25,14 @@ public sealed class BuildingModel
     public required string FileName { get; init; }
     public DateTimeOffset UploadedAt { get; init; } = DateTimeOffset.UtcNow;
     public required IReadOnlyList<BuildingElement> Elements { get; init; }
+
+    /// <summary>
+    /// Décalage (mètres, repère du plan 2D) à appliquer aux coordonnées IFC
+    /// du modèle pour le recaler sur le réseau CVC — le repère du fichier
+    /// IFC ne coïncide pas forcément avec l'origine du plan calibré. Fixé
+    /// par recalage interactif dans la vue 3D (<see cref="BuildingModelService.SetAlignment"/>) ;
+    /// remis à zéro à chaque nouvel import.
+    /// </summary>
+    public double OffsetXMeters { get; set; }
+    public double OffsetZMeters { get; set; }
 }

@@ -49,6 +49,8 @@ export interface BuildingModelDto {
   fileName: string;
   uploadedAt: string;
   elements: BuildingElementDto[];
+  offsetXMeters: number;
+  offsetZMeters: number;
 }
 
 export interface NomenclatureRowDto {
@@ -467,6 +469,25 @@ export async function fetchBuildingModel(projectId: string): Promise<BuildingMod
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(await parseErrorMessage(res, `Échec de la lecture du modèle de bâtiment (${res.status})`));
+  }
+
+  return res.json();
+}
+
+/** Lot 2 — recalage interactif : fixe le décalage entre le repère IFC et celui du plan 2D calibré. */
+export async function setBuildingModelAlignment(
+  projectId: string,
+  offsetXMeters: number,
+  offsetZMeters: number,
+): Promise<BuildingModelDto> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/projects/${projectId}/building-model/alignment`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ offsetXMeters, offsetZMeters }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de l'enregistrement de l'alignement (${res.status})`));
   }
 
   return res.json();

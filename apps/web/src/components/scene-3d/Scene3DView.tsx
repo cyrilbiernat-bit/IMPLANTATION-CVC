@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
   fetchBuildingModel,
   fetchCvcObjects,
   fetchProjectDrawings,
+  setBuildingModelAlignment,
   uploadBuildingModel,
   type BuildingModelDto,
   type CvcObjectDto,
@@ -112,6 +113,54 @@ export function Scene3DView({ projectId }: { projectId: string }) {
   const [uploadingBuildingModel, setUploadingBuildingModel] = useState(false);
   const [buildingModelReloadToken, setBuildingModelReloadToken] = useState(0);
 
+  // Lot 2 — recalage plan 2D ↔ modèle IFC : deux clics (un repère sur le
+  // réseau CVC, le même repère sur le bâtiment) donnent le décalage à
+  // appliquer. `alignModeRef`/`pendingPlanPointRef` doublent l'état React
+  // pour rester lisibles depuis le gestionnaire de clic enregistré dans
+  // l'effet Three.js, qui ne se relance pas à chaque clic.
+  const [alignMode, setAlignModeState] = useState<"idle" | "pick-plan" | "pick-building">("idle");
+  const [pendingPlanPoint, setPendingPlanPointState] = useState<{ x: number; z: number } | null>(null);
+  const [aligning, setAligning] = useState(false);
+  const [alignError, setAlignError] = useState<string | null>(null);
+  const alignModeRef = useRef<"idle" | "pick-plan" | "pick-building">("idle");
+  const pendingPlanPointRef = useRef<{ x: number; z: number } | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+
+  const setAlignMode = (mode: "idle" | "pick-plan" | "pick-building") => {
+    alignModeRef.current = mode;
+    setAlignModeState(mode);
+  };
+  const setPendingPlanPoint = (point: { x: number; z: number } | null) => {
+    pendingPlanPointRef.current = point;
+    setPendingPlanPointState(point);
+  };
+
+  const beginAlign = () => {
+    setAlignError(null);
+    setPendingPlanPoint(null);
+    setAlignMode("pick-plan");
+  };
+  const cancelAlign = () => {
+    setPendingPlanPoint(null);
+    setAlignMode("idle");
+  };
+
+  const submitAlignment = useCallback(
+    async (offsetXMeters: number, offsetZMeters: number) => {
+      setAligning(true);
+      setAlignError(null);
+      try {
+        const updated = await setBuildingModelAlignment(projectId, offsetXMeters, offsetZMeters);
+        setBuildingModel(updated);
+      } catch (err) {
+        setAlignError(err instanceof Error ? err.message : "Échec de l'enregistrement de l'alignement.");
+      } finally {
+        setAligning(false);
+      }
+    },
+    [projectId],
+  );
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -196,9 +245,12 @@ export function Scene3DView({ projectId }: { projectId: string }) {
     const toWorld = (x: number, y: number): [number, number] => [x * mpp, -y * mpp];
     // Le bâtiment IFC vient dans son propre repère (mètres, Z = élévation,
     // convention BIM courante) : on l'aligne sur le même plan horizontal
-    // (X, Z) que le réseau CVC, sans recalage automatique entre les deux —
-    // leurs origines respectives ne coïncident pas forcément.
-    const ifcToWorld = (x: number, y: number, z: number): [number, number, number] => [x, z, -y];
+    // (X, Z) que le réseau CVC, puis on applique le décalage de recalage
+    // (voir « Aligner le bâtiment » ci-dessous) — leurs origines respectives
+    // ne coïncident pas forcément tant qu'il n'a pas été fixé.
+    const offsetX = buildingModel?.offsetXMeters ?? 0;
+    const offsetZ = buildingModel?.offsetZMeters ?? 0;
+    const ifcToWorld = (x: number, y: number, z: number): [number, number, number] => [x + offsetX, z, -y + offsetZ];
 
     const bounds = { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
     const consider = (x: number, z: number) => {
@@ -237,7 +289,9 @@ export function Scene3DView({ projectId }: { projectId: string }) {
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.target.set(centerX, INSTALL_HEIGHT_M, centerZ);
     controls.enableDamping = true;
+    controls.enabled = alignModeRef.current === "idle";
     controls.update();
+    controlsRef.current = controls;
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.9);
@@ -250,6 +304,11 @@ export function Scene3DView({ projectId }: { projectId: string }) {
 
     const geometries: THREE.BufferGeometry[] = [];
     const materials = new Set<THREE.Material>();
+    // Recalage : les meshes du bâtiment et ceux du réseau CVC sont testés
+    // séparément par le raycaster, selon l'étape en cours (`pick-plan` vise
+    // le réseau, `pick-building` vise le bâtiment).
+    const buildingMeshes: THREE.Object3D[] = [];
+    const networkMeshes: THREE.Object3D[] = [];
 
     if (buildingModel) {
       const buildingMaterial = new THREE.MeshStandardMaterial({
@@ -277,6 +336,7 @@ export function Scene3DView({ projectId }: { projectId: string }) {
         const mesh = new THREE.Mesh(geometry, buildingMaterial);
         scene.add(mesh);
         geometries.push(geometry);
+        buildingMeshes.push(mesh);
       }
     }
 
@@ -315,6 +375,7 @@ export function Scene3DView({ projectId }: { projectId: string }) {
         scene.add(mesh);
         geometries.push(geometry);
         materials.add(material);
+        networkMeshes.push(mesh);
       } else if (obj.position && (obj.type === "Coude" || obj.type === "Te" || obj.type === "Reduction")) {
         // Raccords : une géométrie qui se reconnaît (coude cintré, té à
         // dérivation, réduction conique) plutôt qu'un cube générique.
@@ -336,6 +397,7 @@ export function Scene3DView({ projectId }: { projectId: string }) {
           mesh.rotation.y = -obj.rotationRad;
           scene.add(mesh);
           geometries.push(geometry);
+          networkMeshes.push(mesh);
         }
       } else if (obj.position) {
         const [px, pz] = toWorld(obj.position.x, obj.position.y);
@@ -348,8 +410,43 @@ export function Scene3DView({ projectId }: { projectId: string }) {
         scene.add(mesh);
         geometries.push(geometry);
         materials.add(material);
+        networkMeshes.push(mesh);
       }
     }
+
+    const raycaster = new THREE.Raycaster();
+    const onPointerDown = (event: PointerEvent) => {
+      const mode = alignModeRef.current;
+      if (mode === "idle") return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      const ndc = new THREE.Vector2(
+        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+        -((event.clientY - rect.top) / rect.height) * 2 + 1,
+      );
+      raycaster.setFromCamera(ndc, camera);
+
+      if (mode === "pick-plan") {
+        const hit = raycaster.intersectObjects(networkMeshes, false)[0];
+        if (!hit) return;
+        setPendingPlanPoint({ x: hit.point.x, z: hit.point.z });
+        setAlignMode("pick-building");
+        return;
+      }
+
+      const hit = raycaster.intersectObjects(buildingMeshes, false)[0];
+      const plan = pendingPlanPointRef.current;
+      if (!hit || !plan) return;
+
+      const currentOffsetX = buildingModel?.offsetXMeters ?? 0;
+      const currentOffsetZ = buildingModel?.offsetZMeters ?? 0;
+      const newOffsetX = plan.x - hit.point.x + currentOffsetX;
+      const newOffsetZ = plan.z - hit.point.z + currentOffsetZ;
+      setPendingPlanPoint(null);
+      setAlignMode("idle");
+      void submitAlignment(newOffsetX, newOffsetZ);
+    };
+    renderer.domElement.addEventListener("pointerdown", onPointerDown);
 
     let frameId = 0;
     const animate = () => {
@@ -370,6 +467,8 @@ export function Scene3DView({ projectId }: { projectId: string }) {
     return () => {
       cancelAnimationFrame(frameId);
       window.removeEventListener("resize", onResize);
+      renderer.domElement.removeEventListener("pointerdown", onPointerDown);
+      controlsRef.current = null;
       controls.dispose();
       renderer.dispose();
       container.removeChild(renderer.domElement);
@@ -380,7 +479,11 @@ export function Scene3DView({ projectId }: { projectId: string }) {
         material.dispose();
       }
     };
-  }, [calibration, objects, buildingModel]);
+  }, [calibration, objects, buildingModel, submitAlignment]);
+
+  useEffect(() => {
+    if (controlsRef.current) controlsRef.current.enabled = alignMode === "idle";
+  }, [alignMode]);
 
   const usedTypes = objects ? [...new Set(objects.map((o) => o.type))] : [];
   const hasBuilding = !!(buildingModel && buildingModel.elements.length > 0);
@@ -412,6 +515,38 @@ export function Scene3DView({ projectId }: { projectId: string }) {
             onChange={onBuildingModelFileChange}
           />
         </label>
+
+        {hasBuilding && usedTypes.length > 0 && alignMode === "idle" && (
+          <button
+            type="button"
+            onClick={beginAlign}
+            disabled={aligning}
+            className="rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-sm text-slate-200 hover:border-sky-500 hover:text-sky-300"
+          >
+            🎯 Aligner le bâtiment
+          </button>
+        )}
+        {alignMode !== "idle" && (
+          <button
+            type="button"
+            onClick={cancelAlign}
+            className="rounded border border-rose-800 bg-rose-950/40 px-2.5 py-1.5 text-sm text-rose-300 hover:border-rose-600"
+          >
+            Annuler l&apos;alignement
+          </button>
+        )}
+        {hasBuilding &&
+          alignMode === "idle" &&
+          (buildingModel!.offsetXMeters !== 0 || buildingModel!.offsetZMeters !== 0) && (
+            <button
+              type="button"
+              onClick={() => void submitAlignment(0, 0)}
+              disabled={aligning}
+              className="rounded border border-slate-700 bg-slate-900 px-2.5 py-1.5 text-sm text-slate-400 hover:border-slate-500 hover:text-slate-200"
+            >
+              Réinitialiser l&apos;alignement
+            </button>
+          )}
 
         {(usedTypes.length > 0 || hasBuilding) && (
           <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400">
@@ -449,10 +584,27 @@ export function Scene3DView({ projectId }: { projectId: string }) {
           </button>
         </div>
       )}
-      {hasBuilding && (
+      {alignError && (
+        <div className="rounded border border-rose-900 bg-rose-950/30 px-3 py-1.5 text-xs text-rose-300">
+          {alignError}
+        </div>
+      )}
+      {alignMode === "pick-plan" && (
+        <p className="rounded border border-sky-900 bg-sky-950/30 px-3 py-1.5 text-xs text-sky-300">
+          Cliquez un point de repère sur le réseau CVC (coin d&apos;une gaine, raccord…).
+        </p>
+      )}
+      {alignMode === "pick-building" && pendingPlanPoint && (
+        <p className="rounded border border-sky-900 bg-sky-950/30 px-3 py-1.5 text-xs text-sky-300">
+          Point réseau enregistré (X {pendingPlanPoint.x.toFixed(2)} m, Z {pendingPlanPoint.z.toFixed(2)} m) — cliquez
+          maintenant le même point de repère sur le bâtiment (coin de mur, poteau…).
+        </p>
+      )}
+      {hasBuilding && alignMode === "idle" && (
         <p className="text-xs text-slate-500">
-          « {buildingModel!.fileName} » importé — son repère n&apos;est pas recalé automatiquement sur celui du plan 2D,
-          les deux couches peuvent apparaître décalées l&apos;une de l&apos;autre.
+          {buildingModel!.offsetXMeters !== 0 || buildingModel!.offsetZMeters !== 0
+            ? `« ${buildingModel!.fileName} » aligné sur le plan 2D (décalage X ${buildingModel!.offsetXMeters.toFixed(2)} m, Z ${buildingModel!.offsetZMeters.toFixed(2)} m).`
+            : `« ${buildingModel!.fileName} » importé — son repère n'est pas recalé sur celui du plan 2D, les deux couches peuvent apparaître décalées l'une de l'autre. Utilisez « Aligner le bâtiment » pour les faire coïncider.`}
         </p>
       )}
 

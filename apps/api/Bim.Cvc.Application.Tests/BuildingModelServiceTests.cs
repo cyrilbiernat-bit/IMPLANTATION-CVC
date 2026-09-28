@@ -114,6 +114,35 @@ public sealed class BuildingModelServiceTests
         Assert.Throws<ProjectNotFoundException>(() => sut.GetByProject(Guid.NewGuid()));
     }
 
+    [Fact]
+    public async Task SetAlignment_updates_the_offset_of_the_project_s_model()
+    {
+        var (sut, repository, _, projectId) = CreateSut();
+        await sut.ImportAsync(projectId, "batiment.ifc", SomeBytes());
+
+        var result = sut.SetAlignment(projectId, offsetXMeters: 1.5, offsetZMeters: -2.25);
+
+        Assert.Equal(1.5, result.OffsetXMeters);
+        Assert.Equal(-2.25, result.OffsetZMeters);
+        Assert.Same(result, repository.GetByProject(projectId));
+    }
+
+    [Fact]
+    public void SetAlignment_throws_when_the_project_does_not_exist()
+    {
+        var (sut, _, _, _) = CreateSut();
+
+        Assert.Throws<ProjectNotFoundException>(() => sut.SetAlignment(Guid.NewGuid(), 1, 1));
+    }
+
+    [Fact]
+    public void SetAlignment_throws_when_the_project_has_no_building_model()
+    {
+        var (sut, _, _, projectId) = CreateSut();
+
+        Assert.Throws<BuildingModelNotFoundException>(() => sut.SetAlignment(projectId, 1, 1));
+    }
+
     private sealed class FakeExtractor(IReadOnlyList<BuildingElement>? elements, Exception? failure = null) : IIfcGeometryExtractor
     {
         public Task<IReadOnlyList<BuildingElement>> ExtractAsync(string ifcFilePath, CancellationToken ct = default) =>

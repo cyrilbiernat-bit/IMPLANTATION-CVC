@@ -200,6 +200,44 @@ public sealed class EfCoreRepositoriesTests : IAsyncLifetime
     }
 
     [Fact]
+    public async Task BuildingModel_persists_elements_and_alignment_offset_through_a_fresh_context()
+    {
+        var project = new Project { Name = "Projet" };
+        var model = new BuildingModel
+        {
+            ProjectId = project.Id,
+            FileName = "batiment.ifc",
+            Elements = [new BuildingElement("IfcWall", "Mur 1", [0, 0, 0, 1, 0, 0, 1, 1, 0], [0, 1, 2])],
+        };
+
+        await using (var db = CreateContext())
+        {
+            db.Projects.Add(project);
+            db.BuildingModels.Add(model);
+            await db.SaveChangesAsync();
+        }
+
+        // Le recalage (BuildingModelService.SetAlignment) mute l'entité déjà
+        // suivie par le contexte plutôt que de la remplacer — même schéma que
+        // Drawing.Calibration (voir plus haut) — d'où la mutation directe ici.
+        await using (var db = CreateContext())
+        {
+            var tracked = await db.BuildingModels.FirstAsync(m => m.Id == model.Id);
+            tracked.OffsetXMeters = 3.5;
+            tracked.OffsetZMeters = -1.25;
+            await db.SaveChangesAsync();
+        }
+
+        await using var reload = CreateContext();
+        var reloaded = await reload.BuildingModels.FindAsync(model.Id);
+
+        Assert.NotNull(reloaded);
+        Assert.Equal(3.5, reloaded!.OffsetXMeters);
+        Assert.Equal(-1.25, reloaded.OffsetZMeters);
+        Assert.Single(reloaded.Elements);
+    }
+
+    [Fact]
     public async Task Repositories_implement_the_application_interfaces_against_a_real_database()
     {
         await using var db = CreateContext();
