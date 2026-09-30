@@ -22,6 +22,8 @@ import {
  */
 const INSTALL_HEIGHT_M = 2.5;
 const MIN_CROSS_SECTION_MM = 100;
+/** Longueur standard d'un tronçon de tôle — au-delà, une bride/joint visible tous les JOINT_INTERVAL_M. */
+const JOINT_INTERVAL_M = 1.2;
 
 // Section par défaut d'un raccord (coude/té/réduction) qui ne s'est raccroché
 // à aucune gaine dimensionnée — sinon on reprend le rayon réel hérité
@@ -44,7 +46,11 @@ function fittingRadiusM(obj: CvcObjectDto): number {
  * cohérente avec elles une fois posé sur le plan.
  */
 function buildElbowGeometry(radius: number): THREE.BufferGeometry {
-  const geometry = new THREE.TorusGeometry(radius * 2.4, radius, 12, 24, Math.PI / 2);
+  // radialSegments=24 (plutôt que 12) : sous le seuil de 20° du contour noir
+  // (addOutline) — un maillage plus grossier y ferait apparaître chaque
+  // facette de la section tubulaire comme un trait, un effet "hérissé"
+  // indésirable sur une surface censée être lisse.
+  const geometry = new THREE.TorusGeometry(radius * 2.4, radius, 24, 32, Math.PI / 2);
   geometry.rotateX(-Math.PI / 2);
   return geometry;
 }
@@ -58,10 +64,10 @@ function buildTeeGeometries(radius: number): [THREE.BufferGeometry, THREE.Buffer
   const mainLength = radius * 2.4 * 2.4;
   const branchLength = radius * 2.4 * 1.2;
 
-  const main = new THREE.CylinderGeometry(radius, radius, mainLength, 16);
+  const main = new THREE.CylinderGeometry(radius, radius, mainLength, 24);
   main.rotateZ(Math.PI / 2);
 
-  const branch = new THREE.CylinderGeometry(radius, radius, branchLength, 16);
+  const branch = new THREE.CylinderGeometry(radius, radius, branchLength, 24);
   branch.rotateX(Math.PI / 2);
   branch.translate(0, 0, -branchLength / 2);
 
@@ -71,7 +77,7 @@ function buildTeeGeometries(radius: number): [THREE.BufferGeometry, THREE.Buffer
 /** Réduction : tronc de cône reliant deux sections, centré sur `position` le long de l'axe X local. */
 function buildReducerGeometry(radius: number): THREE.BufferGeometry {
   const length = radius * 2.4 * 1.6;
-  const geometry = new THREE.CylinderGeometry(radius * 0.4, radius, length, 20);
+  const geometry = new THREE.CylinderGeometry(radius * 0.4, radius, length, 24);
   geometry.rotateZ(Math.PI / 2);
   return geometry;
 }
@@ -310,6 +316,17 @@ export function Scene3DView({ projectId }: { projectId: string }) {
     const buildingMeshes: THREE.Object3D[] = [];
     const networkMeshes: THREE.Object3D[] = [];
 
+    // Contour noir sur chaque volume du réseau — l'effet "illustration
+    // technique à plat" (aplats de couleur cernés d'un trait franc) plutôt
+    // qu'un rendu 3D photoréaliste lissé.
+    const outlineMaterial = new THREE.LineBasicMaterial({ color: 0x0f172a });
+    materials.add(outlineMaterial);
+    const addOutline = (mesh: THREE.Mesh, geometry: THREE.BufferGeometry) => {
+      const edges = new THREE.EdgesGeometry(geometry, 20);
+      mesh.add(new THREE.LineSegments(edges, outlineMaterial));
+      geometries.push(edges);
+    };
+
     if (buildingModel) {
       const buildingMaterial = new THREE.MeshStandardMaterial({
         color: 0xcbd5e1,
@@ -350,18 +367,23 @@ export function Scene3DView({ projectId }: { projectId: string }) {
         if (length < 1e-3) continue;
 
         const isCircular = obj.type === "GaineCirculaire";
-        const material = new THREE.MeshStandardMaterial({ color, metalness: 0.25, roughness: 0.55 });
+        // Matériau mat, sans reflet — l'aplat de couleur d'une illustration
+        // technique plutôt qu'un rendu PBR photoréaliste.
+        const material = new THREE.MeshLambertMaterial({ color });
+        materials.add(material);
         let geometry: THREE.BufferGeometry;
         let mesh: THREE.Mesh;
+        let collarQuaternion: THREE.Quaternion;
 
         if (isCircular) {
           const radius = Math.max(obj.diameterMm ?? MIN_CROSS_SECTION_MM, MIN_CROSS_SECTION_MM) / 2000;
-          geometry = new THREE.CylinderGeometry(radius, radius, length, 20);
+          geometry = new THREE.CylinderGeometry(radius, radius, length, 24);
           mesh = new THREE.Mesh(geometry, material);
           const angle = Math.atan2(ez - sz, ex - sx);
           const alignToX = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 2);
           const pointAlongDirection = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle);
-          mesh.quaternion.copy(pointAlongDirection.multiply(alignToX));
+          collarQuaternion = pointAlongDirection.multiply(alignToX);
+          mesh.quaternion.copy(collarQuaternion);
         } else {
           const heightM = Math.max(obj.heightMm ?? MIN_CROSS_SECTION_MM, MIN_CROSS_SECTION_MM) / 1000;
           const widthM = Math.max(obj.widthMm ?? MIN_CROSS_SECTION_MM, MIN_CROSS_SECTION_MM) / 1000;
@@ -369,18 +391,47 @@ export function Scene3DView({ projectId }: { projectId: string }) {
           mesh = new THREE.Mesh(geometry, material);
           const angle = Math.atan2(ez - sz, ex - sx);
           mesh.rotation.y = -angle;
+          collarQuaternion = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), -angle);
         }
 
         mesh.position.set((sx + ex) / 2, INSTALL_HEIGHT_M, (sz + ez) / 2);
         scene.add(mesh);
         geometries.push(geometry);
-        materials.add(material);
+        addOutline(mesh, geometry);
         networkMeshes.push(mesh);
+
+        // Joints/brides visibles à intervalle régulier — la tôle vient en
+        // longueurs standard, comme sur un vrai plan de réseau aéraulique.
+        const jointCount = Math.min(8, Math.max(0, Math.floor(length / JOINT_INTERVAL_M) - 1));
+        if (jointCount > 0) {
+          const collarMaterial = new THREE.MeshLambertMaterial({ color: 0x475569 });
+          materials.add(collarMaterial);
+          for (let i = 1; i <= jointCount; i++) {
+            const t = (i * JOINT_INTERVAL_M) / length;
+            const collarGeometry = isCircular
+              ? new THREE.CylinderGeometry(
+                  (Math.max(obj.diameterMm ?? MIN_CROSS_SECTION_MM, MIN_CROSS_SECTION_MM) / 2000) * 1.12,
+                  (Math.max(obj.diameterMm ?? MIN_CROSS_SECTION_MM, MIN_CROSS_SECTION_MM) / 2000) * 1.12,
+                  0.04,
+                  20,
+                )
+              : new THREE.BoxGeometry(
+                  0.04,
+                  (Math.max(obj.heightMm ?? MIN_CROSS_SECTION_MM, MIN_CROSS_SECTION_MM) / 1000) * 1.15,
+                  (Math.max(obj.widthMm ?? MIN_CROSS_SECTION_MM, MIN_CROSS_SECTION_MM) / 1000) * 1.15,
+                );
+            const collar = new THREE.Mesh(collarGeometry, collarMaterial);
+            collar.quaternion.copy(collarQuaternion);
+            collar.position.set(sx + (ex - sx) * t, INSTALL_HEIGHT_M, sz + (ez - sz) * t);
+            scene.add(collar);
+            geometries.push(collarGeometry);
+          }
+        }
       } else if (obj.position && (obj.type === "Coude" || obj.type === "Te" || obj.type === "Reduction")) {
         // Raccords : une géométrie qui se reconnaît (coude cintré, té à
         // dérivation, réduction conique) plutôt qu'un cube générique.
         const [px, pz] = toWorld(obj.position.x, obj.position.y);
-        const material = new THREE.MeshStandardMaterial({ color, metalness: 0.3, roughness: 0.5 });
+        const material = new THREE.MeshLambertMaterial({ color });
         materials.add(material);
 
         const radius = fittingRadiusM(obj);
@@ -397,20 +448,76 @@ export function Scene3DView({ projectId }: { projectId: string }) {
           mesh.rotation.y = -obj.rotationRad;
           scene.add(mesh);
           geometries.push(geometry);
+          addOutline(mesh, geometry);
           networkMeshes.push(mesh);
         }
       } else if (obj.position) {
         const [px, pz] = toWorld(obj.position.x, obj.position.y);
-        const size = obj.type === "Cta" ? 0.6 : 0.3;
-        const geometry = new THREE.BoxGeometry(size, size, size);
-        const material = new THREE.MeshStandardMaterial({ color, metalness: 0.15, roughness: 0.7 });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.position.set(px, INSTALL_HEIGHT_M, pz);
-        mesh.rotation.y = -obj.rotationRad;
-        scene.add(mesh);
-        geometries.push(geometry);
-        materials.add(material);
-        networkMeshes.push(mesh);
+        const rotY = -obj.rotationRad;
+
+        if (obj.type === "Cta") {
+          // Caisson de traitement d'air : trois compartiments (filtre /
+          // ventilateur / batterie) plutôt qu'un cube générique.
+          const w = 1.2;
+          const h = 0.7;
+          const d = 0.6;
+          const material = new THREE.MeshLambertMaterial({ color });
+          materials.add(material);
+          const geometry = new THREE.BoxGeometry(w, h, d);
+          const casing = new THREE.Mesh(geometry, material);
+          casing.position.set(px, INSTALL_HEIGHT_M, pz);
+          casing.rotation.y = rotY;
+          scene.add(casing);
+          geometries.push(geometry);
+          addOutline(casing, geometry);
+          networkMeshes.push(casing);
+
+          const dividerPositions = new Float32Array([
+            -w / 6, -h / 2, d / 2 + 0.001, -w / 6, h / 2, d / 2 + 0.001,
+            w / 6, -h / 2, d / 2 + 0.001, w / 6, h / 2, d / 2 + 0.001,
+          ]);
+          const dividerGeometry = new THREE.BufferGeometry();
+          dividerGeometry.setAttribute("position", new THREE.BufferAttribute(dividerPositions, 3));
+          casing.add(new THREE.LineSegments(dividerGeometry, outlineMaterial));
+          geometries.push(dividerGeometry);
+
+          const fanMaterial = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
+          materials.add(fanMaterial);
+          const fanGeometry = new THREE.CylinderGeometry(h * 0.32, h * 0.32, 0.05, 20);
+          const fan = new THREE.Mesh(fanGeometry, fanMaterial);
+          fan.rotation.x = Math.PI / 2;
+          fan.position.set(0, 0, d / 2 + 0.03);
+          casing.add(fan);
+          geometries.push(fanGeometry);
+          addOutline(fan, fanGeometry);
+        } else if (obj.type === "Extracteur") {
+          // Caisson de ventilateur d'extraction : volume cylindrique, pour
+          // se distinguer des grilles terminales (plaques plates).
+          const material = new THREE.MeshLambertMaterial({ color });
+          materials.add(material);
+          const geometry = new THREE.CylinderGeometry(0.22, 0.22, 0.35, 20);
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.position.set(px, INSTALL_HEIGHT_M, pz);
+          mesh.rotation.z = Math.PI / 2;
+          mesh.rotation.y = rotY;
+          scene.add(mesh);
+          geometries.push(geometry);
+          addOutline(mesh, geometry);
+          networkMeshes.push(mesh);
+        } else {
+          // Bouche / diffuseur : plaque terminale plate montée en plafond,
+          // plus réaliste qu'un cube plein flottant dans le vide.
+          const material = new THREE.MeshLambertMaterial({ color });
+          materials.add(material);
+          const geometry = new THREE.BoxGeometry(0.4, 0.04, 0.4);
+          const mesh = new THREE.Mesh(geometry, material);
+          mesh.position.set(px, INSTALL_HEIGHT_M, pz);
+          mesh.rotation.y = rotY;
+          scene.add(mesh);
+          geometries.push(geometry);
+          addOutline(mesh, geometry);
+          networkMeshes.push(mesh);
+        }
       }
     }
 

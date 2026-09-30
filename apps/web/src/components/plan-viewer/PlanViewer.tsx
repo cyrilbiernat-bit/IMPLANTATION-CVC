@@ -57,18 +57,6 @@ const CVC_TYPE_LABELS: Record<CvcObjectType, string> = {
   Cta: "CTA",
 };
 
-const POINT_OBJECT_LABELS: Record<CvcObjectType, string> = {
-  GaineRectangulaire: "",
-  GaineCirculaire: "",
-  Coude: "CO",
-  Te: "TE",
-  Reduction: "RD",
-  Bouche: "BO",
-  Diffuseur: "DI",
-  Extracteur: "EX",
-  Cta: "CTA",
-};
-
 const TOOLS: { type: CvcObjectType; icon: string; short: string }[] = [
   { type: "GaineRectangulaire", icon: "▭", short: "Rect." },
   { type: "GaineCirculaire", icon: "◯", short: "Circ." },
@@ -882,6 +870,12 @@ export function PlanViewer({ projectId }: { projectId: string }) {
   const isProcessingCad = (format === "dxf" || format === "dwg") && !entities && saveStatus !== "error";
   const cadViewport = format !== "pdf" && bounds ? computeCadViewport(bounds, scale) : null;
   const markerSize = format === "pdf" ? 12 : bounds ? Math.max(bounds.maxX - bounds.minX, bounds.maxY - bounds.minY) * 0.02 : 100;
+  // Combien d'unités de dessin (px PDF, ou unités natives du fichier CAO)
+  // représentent 1 mètre réel — pour dessiner les gaines à leur largeur
+  // réelle (double ligne) plutôt qu'un simple trait centré. Sans calibration
+  // connue (plan CAO non calibré), on suppose que le fichier est déjà à
+  // l'échelle (1 unité = 1 mètre), comme le reste du dessin CAO ci-dessus.
+  const unitsPerMeter = calibration ? 1 / calibration.metersPerPixel : 1;
   const selectedObject = objects.find((o) => o.id === selectedObjectId) ?? null;
   const selectedObjectLayer = selectedObject ? (layerById.get(selectedObject.layerId) ?? null) : null;
   const cursor = !hasContent ? "default" : isInteractiveMode ? "crosshair" : "grab";
@@ -1098,6 +1092,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
                       onSelect={selectObject}
                       project={pdfProject}
                       markerSize={markerSize}
+                      unitsPerMeter={unitsPerMeter}
                       findingSeverityByObjectId={findingSeverityByObjectId}
                     />
                     {pdfOverlay?.ductStart && (
@@ -1162,6 +1157,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
                     onSelect={selectObject}
                     project={cadProject}
                     markerSize={markerSize}
+                    unitsPerMeter={unitsPerMeter}
                     findingSeverityByObjectId={findingSeverityByObjectId}
                   />
                   {ductDraft.start && (
@@ -1477,12 +1473,27 @@ function PropertyField({ label, value }: { label: string; value: string }) {
   );
 }
 
+/** Contour foncé commun à tous les symboles — le rendu "illustration technique" (traits noirs francs sur aplat de couleur) plutôt qu'un rendu 3D lissé. */
+const OUTLINE_COLOR = "#1e293b";
+/** Épaisseur réelle plancher d'une gaine sans section connue (raccord isolé), cohérente avec l'API et la vue 3D. */
+const MIN_CROSS_SECTION_M = 0.1;
+/** Longueur standard d'un tronçon de tôle — au-delà, un joint/bride visible tous les JOINT_INTERVAL_M, comme sur un vrai plan de réseau. */
+const JOINT_INTERVAL_M = 1.2;
+
+/** Largeur/diamètre réel d'un raccord (hérité de la gaine à laquelle il se connecte), en unités de dessin — sinon la taille de repère par défaut. */
+function fittingSizeUnits(obj: CvcObjectDto, unitsPerMeter: number, markerSize: number): number {
+  if (obj.diameterMm) return Math.max(obj.diameterMm / 1000, MIN_CROSS_SECTION_M) * unitsPerMeter;
+  if (obj.widthMm) return Math.max(obj.widthMm / 1000, MIN_CROSS_SECTION_M) * unitsPerMeter;
+  return markerSize;
+}
+
 function CvcObjectsLayer({
   objects,
   selectedObjectId,
   onSelect,
   project,
   markerSize,
+  unitsPerMeter,
   findingSeverityByObjectId,
 }: {
   objects: CvcObjectDto[];
@@ -1490,6 +1501,7 @@ function CvcObjectsLayer({
   onSelect: (id: string) => void;
   project: Project;
   markerSize: number;
+  unitsPerMeter: number;
   findingSeverityByObjectId: Map<string, ComplianceFindingDto["severity"]>;
 }) {
   return (
@@ -1504,21 +1516,74 @@ function CvcObjectsLayer({
         };
 
         if (obj.start && obj.end) {
-          const [x1, y1] = project(obj.start.x, obj.start.y);
-          const [x2, y2] = project(obj.end.x, obj.end.y);
+          const start = obj.start;
+          const end = obj.end;
           const isCircular = obj.type === "GaineCirculaire";
+          const dx = end.x - start.x;
+          const dy = end.y - start.y;
+          const lenUnits = Math.hypot(dx, dy);
+          if (lenUnits < 1e-6) return null;
+
+          // Gaine dessinée à sa largeur réelle (double ligne), comme sur un
+          // plan CVC professionnel, plutôt qu'un simple trait centré — le
+          // décalage perpendiculaire est calculé dans l'espace de dessin
+          // d'origine (avant project()) pour rester correct quel que soit
+          // le visualiseur (PDF ou CAO).
+          const realWidthM = Math.max(
+            (isCircular ? obj.diameterMm : obj.widthMm) ?? MIN_CROSS_SECTION_M * 1000,
+            MIN_CROSS_SECTION_M * 1000,
+          ) / 1000;
+          const halfWidthUnits = (realWidthM / 2) * unitsPerMeter;
+          const px = (-dy / lenUnits) * halfWidthUnits;
+          const py = (dx / lenUnits) * halfWidthUnits;
+
+          const corners = [
+            project(start.x + px, start.y + py),
+            project(end.x + px, end.y + py),
+            project(end.x - px, end.y - py),
+            project(start.x - px, start.y - py),
+          ];
+          const bodyPoints = corners.map(([px2, py2]) => `${px2},${py2}`).join(" ");
+          const [x1, y1] = project(start.x, start.y);
+          const [x2, y2] = project(end.x, end.y);
+
+          const realLengthM = lenUnits / unitsPerMeter;
+          const jointCount = Math.min(8, Math.max(0, Math.floor(realLengthM / JOINT_INTERVAL_M) - 1));
+          const joints = Array.from({ length: jointCount }, (_, i) => {
+            const t = ((i + 1) * JOINT_INTERVAL_M) / realLengthM;
+            const jx = start.x + dx * t;
+            const jy = start.y + dy * t;
+            const [ja, jaY] = project(jx + px, jy + py);
+            const [jb, jbY] = project(jx - px, jy - py);
+            return { key: i, x1: ja, y1: jaY, x2: jb, y2: jbY };
+          });
+
           return (
             <g key={obj.id}>
               <g onClick={onClick} style={{ cursor: "pointer" }}>
-                {/* zone de clic élargie, invisible : une gaine à 3px est difficile à viser précisément */}
+                {/* zone de clic élargie, invisible : viser précisément le contour d'une gaine fine est difficile */}
                 <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={16} vectorEffect="non-scaling-stroke" />
-                <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={selected ? 4 : 3} vectorEffect="non-scaling-stroke" />
-                {isCircular && (
-                  <>
-                    <circle cx={x1} cy={y1} r={markerSize * 0.22} fill={color} />
-                    <circle cx={x2} cy={y2} r={markerSize * 0.22} fill={color} />
-                  </>
-                )}
+                <polygon
+                  points={bodyPoints}
+                  fill={color}
+                  fillOpacity={0.18}
+                  stroke={OUTLINE_COLOR}
+                  strokeWidth={selected ? 2.5 : 1.5}
+                  vectorEffect="non-scaling-stroke"
+                />
+                {joints.map((j) => (
+                  <line
+                    key={j.key}
+                    x1={j.x1}
+                    y1={j.y1}
+                    x2={j.x2}
+                    y2={j.y2}
+                    stroke={OUTLINE_COLOR}
+                    strokeWidth={1}
+                    vectorEffect="non-scaling-stroke"
+                  />
+                ))}
+                {selected && <line x1={x1} y1={y1} x2={x2} y2={y2} stroke={color} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />}
               </g>
               {finding && <FindingBadge x={(x1 + x2) / 2} y={(y1 + y2) / 2 - markerSize * 0.6} size={markerSize} severity={finding} />}
             </g>
@@ -1530,45 +1595,28 @@ function CvcObjectsLayer({
           const rotationDeg = (obj.rotationRad * 180) / Math.PI;
 
           if (obj.type === "Coude" || obj.type === "Te" || obj.type === "Reduction") {
+            const span = Math.max(markerSize * 0.9, Math.min(markerSize * 3, fittingSizeUnits(obj, unitsPerMeter, markerSize) * 2.4));
             return (
               <g key={obj.id}>
                 <g onClick={onClick} style={{ cursor: "pointer" }} transform={`translate(${x} ${y}) rotate(${rotationDeg})`}>
-                  <FittingIcon type={obj.type} size={markerSize} color={color} />
+                  <FittingIcon type={obj.type} size={span} color={color} selected={selected} />
                 </g>
-                {finding && <FindingBadge x={x} y={y - markerSize * 0.7} size={markerSize} severity={finding} />}
+                {finding && <FindingBadge x={x} y={y - span * 0.5} size={markerSize} severity={finding} />}
               </g>
             );
           }
 
-          const size = obj.type === "Cta" ? markerSize * 1.8 : markerSize;
-          const isBouche = obj.type === "Bouche";
           return (
             <g key={obj.id}>
               <g onClick={onClick} style={{ cursor: "pointer" }} transform={`translate(${x} ${y}) rotate(${rotationDeg})`}>
-                <rect
-                  x={-size / 2}
-                  y={-size / 2}
-                  width={size}
-                  height={size}
-                  fill={isBouche ? "white" : color}
-                  fillOpacity={isBouche ? 0 : 0.85}
-                  stroke={color}
-                  strokeWidth={selected ? 2.5 : 1.5}
-                  vectorEffect="non-scaling-stroke"
+                <AccessoryIcon
+                  type={obj.type as "Bouche" | "Diffuseur" | "Extracteur" | "Cta"}
+                  size={markerSize}
+                  color={color}
+                  selected={selected}
                 />
-                <text
-                  x={0}
-                  y={1}
-                  textAnchor="middle"
-                  dominantBaseline="middle"
-                  fontSize={size * 0.4}
-                  fill={isBouche ? color : "white"}
-                  style={{ pointerEvents: "none" }}
-                >
-                  {POINT_OBJECT_LABELS[obj.type]}
-                </text>
               </g>
-              {finding && <FindingBadge x={x} y={y - size * 0.7} size={markerSize} severity={finding} />}
+              {finding && <FindingBadge x={x} y={y - markerSize * 1.1} size={markerSize} severity={finding} />}
             </g>
           );
         }
@@ -1611,24 +1659,28 @@ function FittingIcon({
   type,
   size,
   color,
+  selected,
 }: {
   type: "Coude" | "Te" | "Reduction";
   size: number;
   color: string;
+  selected: boolean;
 }) {
-  const strokeWidth = size * 0.22;
-  const hitSize = size * 1.6;
-  const hitArea = (
-    <rect x={-hitSize / 2} y={-hitSize / 2} width={hitSize} height={hitSize} fill="transparent" />
-  );
+  // Double trait (contour foncé plus large en dessous, couleur au-dessus) :
+  // donne l'effet "tuyau bordé" d'une illustration technique plutôt qu'un
+  // simple trait fin, et matérialise l'épaisseur réelle de la gaine.
+  const thickness = size * 0.42;
+  const outlineWidth = thickness + (selected ? 3 : 2.5);
+  const hitSize = size * 1.4;
+  const hitArea = <rect x={-hitSize / 2} y={-hitSize / 2} width={hitSize} height={hitSize} fill="transparent" />;
 
   if (type === "Reduction") {
     // Tronc de cône de réduction : la gaine se rétrécit de gauche à droite.
     const points = [
-      [-size / 2, -size * 0.32],
-      [-size / 2, size * 0.32],
-      [size / 2, size * 0.14],
-      [size / 2, -size * 0.14],
+      [-size / 2, -size * 0.28],
+      [-size / 2, size * 0.28],
+      [size / 2, size * 0.12],
+      [size / 2, -size * 0.12],
     ]
       .map((p) => p.join(","))
       .join(" ");
@@ -1638,9 +1690,10 @@ function FittingIcon({
         <polygon
           points={points}
           fill={color}
-          fillOpacity={0.85}
-          stroke={color}
-          strokeWidth={1.5}
+          fillOpacity={0.9}
+          stroke={OUTLINE_COLOR}
+          strokeWidth={selected ? 2.5 : 1.75}
+          strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
       </>
@@ -1649,47 +1702,121 @@ function FittingIcon({
 
   if (type === "Te") {
     // Té/piquage : le collecteur principal avec une dérivation perpendiculaire.
+    const d = `M ${-size / 2} 0 L ${size / 2} 0 M 0 0 L 0 ${size / 2}`;
     return (
       <>
         {hitArea}
-        <line
-          x1={-size / 2}
-          y1={0}
-          x2={size / 2}
-          y2={0}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
-        <line
-          x1={0}
-          y1={0}
-          x2={0}
-          y2={size / 2}
-          stroke={color}
-          strokeWidth={strokeWidth}
-          strokeLinecap="round"
-          vectorEffect="non-scaling-stroke"
-        />
+        <path d={d} fill="none" stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        <path d={d} fill="none" stroke={color} strokeWidth={thickness} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       </>
     );
   }
 
   // Coude : arrivée par la gauche, coude arrondi à 90° vers le bas.
-  const r = size * 0.22;
+  const r = size * 0.3;
   const d = `M ${-size / 2} 0 L ${-r} 0 A ${r} ${r} 0 0 1 0 ${r} L 0 ${size / 2}`;
   return (
     <>
       {hitArea}
-      <path
-        d={d}
-        fill="none"
-        stroke={color}
-        strokeWidth={strokeWidth}
-        strokeLinecap="round"
+      <path d={d} fill="none" stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <path d={d} fill="none" stroke={color} strokeWidth={thickness} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </>
+  );
+}
+
+/**
+ * Symboles techniques pour les équipements terminaux — une iconographie
+ * reconnaissable (grille de soufflage, grille d'extraction, hélice de
+ * ventilateur, caisson compartimenté) plutôt que des initiales dans un
+ * carré, pour se rapprocher des conventions de dessin CVC usuelles.
+ */
+function AccessoryIcon({
+  type,
+  size,
+  color,
+  selected,
+}: {
+  type: "Bouche" | "Diffuseur" | "Extracteur" | "Cta";
+  size: number;
+  color: string;
+  selected: boolean;
+}) {
+  const outlineWidth = selected ? 2.5 : 1.75;
+
+  if (type === "Cta") {
+    // Caisson de traitement d'air : trois compartiments (filtre / ventilateur / batterie).
+    const w = size * 2.2;
+    const h = size * 1.3;
+    const compW = w / 3;
+    return (
+      <>
+        <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} fillOpacity={0.18} stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} vectorEffect="non-scaling-stroke" />
+        <line x1={-w / 2 + compW} y1={-h / 2} x2={-w / 2 + compW} y2={h / 2} stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        <line x1={-w / 2 + compW * 2} y1={-h / 2} x2={-w / 2 + compW * 2} y2={h / 2} stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        <circle r={h * 0.28} fill="white" stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        <path d={`M ${-h * 0.16} ${-h * 0.14} L ${h * 0.2} 0 L ${-h * 0.16} ${h * 0.14} Z`} fill={OUTLINE_COLOR} />
+      </>
+    );
+  }
+
+  if (type === "Extracteur") {
+    // Ventilateur d'extraction : hélice à trois pales dans un cercle.
+    const r = size / 2;
+    const blade = (angleDeg: number) => {
+      const rad = (angleDeg * Math.PI) / 180;
+      const tipX = Math.cos(rad) * r * 0.75;
+      const tipY = Math.sin(rad) * r * 0.75;
+      const perpX = Math.cos(rad + Math.PI / 2) * r * 0.18;
+      const perpY = Math.sin(rad + Math.PI / 2) * r * 0.18;
+      return `M 0 0 L ${tipX + perpX} ${tipY + perpY} L ${tipX - perpX} ${tipY - perpY} Z`;
+    };
+    return (
+      <>
+        <circle r={r} fill={color} fillOpacity={0.18} stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} vectorEffect="non-scaling-stroke" />
+        {[0, 120, 240].map((angleDeg) => (
+          <path key={angleDeg} d={blade(angleDeg)} fill={OUTLINE_COLOR} />
+        ))}
+        <circle r={r * 0.15} fill={OUTLINE_COLOR} />
+      </>
+    );
+  }
+
+  // Diffuseur (soufflage, 4 voies) : carré, croix directionnelle, col central.
+  // Bouche (extraction) : carré, grille à lamelles parallèles.
+  const isDiffuseur = type === "Diffuseur";
+  return (
+    <>
+      <rect
+        x={-size / 2}
+        y={-size / 2}
+        width={size}
+        height={size}
+        fill={isDiffuseur ? color : "white"}
+        fillOpacity={isDiffuseur ? 0.18 : 1}
+        stroke={OUTLINE_COLOR}
+        strokeWidth={outlineWidth}
         vectorEffect="non-scaling-stroke"
       />
+      {isDiffuseur ? (
+        <>
+          <line x1={-size / 2} y1={-size / 2} x2={size / 2} y2={size / 2} stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          <line x1={size / 2} y1={-size / 2} x2={-size / 2} y2={size / 2} stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          <circle r={size * 0.16} fill="white" stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+        </>
+      ) : (
+        [-0.28, 0, 0.28].map((f) => (
+          <line
+            key={f}
+            x1={-size * 0.35}
+            y1={size * f}
+            x2={size * 0.35}
+            y2={size * f}
+            stroke={OUTLINE_COLOR}
+            strokeWidth={1}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))
+      )}
     </>
   );
 }
