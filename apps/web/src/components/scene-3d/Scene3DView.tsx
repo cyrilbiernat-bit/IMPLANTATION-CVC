@@ -326,6 +326,19 @@ export function Scene3DView({ projectId }: { projectId: string }) {
       mesh.add(new THREE.LineSegments(edges, outlineMaterial));
       geometries.push(edges);
     };
+    // Brides/joints (gaines droites) et brides de raccordement (raccords) —
+    // même matériau gris tôle, pour lire le réseau comme un seul système.
+    const collarMaterial = new THREE.MeshLambertMaterial({ color: 0x475569 });
+    materials.add(collarMaterial);
+    const addFlangeAt = (parent: THREE.Object3D, r: number, x: number, y: number, z: number, axis: "x" | "z") => {
+      const flangeGeometry = new THREE.CylinderGeometry(r * 1.15, r * 1.15, 0.035, 20);
+      if (axis === "x") flangeGeometry.rotateZ(Math.PI / 2);
+      else flangeGeometry.rotateX(Math.PI / 2);
+      const flange = new THREE.Mesh(flangeGeometry, collarMaterial);
+      flange.position.set(x, y, z);
+      parent.add(flange);
+      geometries.push(flangeGeometry);
+    };
 
     if (buildingModel) {
       const buildingMaterial = new THREE.MeshStandardMaterial({
@@ -404,8 +417,6 @@ export function Scene3DView({ projectId }: { projectId: string }) {
         // longueurs standard, comme sur un vrai plan de réseau aéraulique.
         const jointCount = Math.min(8, Math.max(0, Math.floor(length / JOINT_INTERVAL_M) - 1));
         if (jointCount > 0) {
-          const collarMaterial = new THREE.MeshLambertMaterial({ color: 0x475569 });
-          materials.add(collarMaterial);
           for (let i = 1; i <= jointCount; i++) {
             const t = (i * JOINT_INTERVAL_M) / length;
             const collarGeometry = isCircular
@@ -442,7 +453,7 @@ export function Scene3DView({ projectId }: { projectId: string }) {
               ? buildTeeGeometries(radius)
               : [buildReducerGeometry(radius)];
 
-        for (const geometry of fittingGeometries) {
+        fittingGeometries.forEach((geometry, i) => {
           const mesh = new THREE.Mesh(geometry, material);
           mesh.position.set(px, INSTALL_HEIGHT_M, pz);
           mesh.rotation.y = -obj.rotationRad;
@@ -450,17 +461,36 @@ export function Scene3DView({ projectId }: { projectId: string }) {
           geometries.push(geometry);
           addOutline(mesh, geometry);
           networkMeshes.push(mesh);
-        }
+
+          // Brides de raccordement, comme sur les gaines droites — le
+          // raccord se lit comme branché au réseau, pas comme flottant.
+          if (obj.type === "Te") {
+            const mainLength = radius * 2.4 * 2.4;
+            const branchLength = radius * 2.4 * 1.2;
+            if (i === 0) {
+              addFlangeAt(mesh, radius, -mainLength / 2, 0, 0, "x");
+              addFlangeAt(mesh, radius, mainLength / 2, 0, 0, "x");
+            } else {
+              addFlangeAt(mesh, radius, 0, 0, -branchLength, "z");
+            }
+          } else if (obj.type === "Reduction") {
+            const length = radius * 2.4 * 1.6;
+            addFlangeAt(mesh, radius * 0.4, -length / 2, 0, 0, "x");
+            addFlangeAt(mesh, radius, length / 2, 0, 0, "x");
+          }
+        });
       } else if (obj.position) {
         const [px, pz] = toWorld(obj.position.x, obj.position.y);
         const rotY = -obj.rotationRad;
 
         if (obj.type === "Cta") {
-          // Caisson de traitement d'air : trois compartiments (filtre /
-          // ventilateur / batterie) plutôt qu'un cube générique.
-          const w = 1.2;
-          const h = 0.7;
-          const d = 0.6;
+          // Caisson de traitement d'air : trois compartiments (filtre à
+          // claire-voie / ventilateur / batterie) — le plus gros équipement
+          // du réseau, dimensionné en conséquence.
+          const w = 1.7;
+          const h = 0.95;
+          const d = 0.75;
+          const compW = w / 3;
           const material = new THREE.MeshLambertMaterial({ color });
           materials.add(material);
           const geometry = new THREE.BoxGeometry(w, h, d);
@@ -481,21 +511,54 @@ export function Scene3DView({ projectId }: { projectId: string }) {
           casing.add(new THREE.LineSegments(dividerGeometry, outlineMaterial));
           geometries.push(dividerGeometry);
 
+          // Filtre à claire-voie : hachures diagonales dans le premier compartiment.
+          const filterX = -w / 2 + compW / 2;
+          const filterHatch: number[] = [];
+          for (let i = -2; i <= 2; i++) {
+            const off = i * (compW * 0.22);
+            filterHatch.push(
+              filterX + off - compW * 0.32, -h * 0.38, d / 2 + 0.002,
+              filterX + off + compW * 0.32, h * 0.38, d / 2 + 0.002,
+            );
+          }
+          const filterGeometry = new THREE.BufferGeometry();
+          filterGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(filterHatch), 3));
+          casing.add(new THREE.LineSegments(filterGeometry, outlineMaterial));
+          geometries.push(filterGeometry);
+
+          // Batterie chaud/froid : ailettes verticales dans le dernier compartiment.
+          const coilX = w / 2 - compW / 2;
+          const coilPositions: number[] = [];
+          for (const f of [-0.25, 0, 0.25]) {
+            coilPositions.push(coilX + compW * f, -h * 0.38, d / 2 + 0.002, coilX + compW * f, h * 0.38, d / 2 + 0.002);
+          }
+          const coilGeometry = new THREE.BufferGeometry();
+          coilGeometry.setAttribute("position", new THREE.BufferAttribute(new Float32Array(coilPositions), 3));
+          casing.add(new THREE.LineSegments(coilGeometry, outlineMaterial));
+          geometries.push(coilGeometry);
+
+          // Ventilateur : carter rond visible en façade du compartiment central.
           const fanMaterial = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
           materials.add(fanMaterial);
-          const fanGeometry = new THREE.CylinderGeometry(h * 0.32, h * 0.32, 0.05, 20);
+          const fanGeometry = new THREE.CylinderGeometry(h * 0.34, h * 0.34, 0.05, 24);
           const fan = new THREE.Mesh(fanGeometry, fanMaterial);
           fan.rotation.x = Math.PI / 2;
           fan.position.set(0, 0, d / 2 + 0.03);
           casing.add(fan);
           geometries.push(fanGeometry);
           addOutline(fan, fanGeometry);
+          const housingGeometry = new THREE.TorusGeometry(h * 0.34, 0.012, 8, 24);
+          const housing = new THREE.Mesh(housingGeometry, fanMaterial);
+          housing.position.set(0, 0, d / 2 + 0.03);
+          casing.add(housing);
+          geometries.push(housingGeometry);
         } else if (obj.type === "Extracteur") {
-          // Caisson de ventilateur d'extraction : volume cylindrique, pour
-          // se distinguer des grilles terminales (plaques plates).
+          // Caisson de ventilateur d'extraction : volume cylindrique avec
+          // carter de sortie (bague), pour se lire comme un ventilateur
+          // plutôt qu'un simple bidon.
           const material = new THREE.MeshLambertMaterial({ color });
           materials.add(material);
-          const geometry = new THREE.CylinderGeometry(0.22, 0.22, 0.35, 20);
+          const geometry = new THREE.CylinderGeometry(0.26, 0.26, 0.4, 24);
           const mesh = new THREE.Mesh(geometry, material);
           mesh.position.set(px, INSTALL_HEIGHT_M, pz);
           mesh.rotation.z = Math.PI / 2;
@@ -504,19 +567,59 @@ export function Scene3DView({ projectId }: { projectId: string }) {
           geometries.push(geometry);
           addOutline(mesh, geometry);
           networkMeshes.push(mesh);
-        } else {
-          // Bouche / diffuseur : plaque terminale plate montée en plafond,
-          // plus réaliste qu'un cube plein flottant dans le vide.
+
+          const ringMaterial = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
+          materials.add(ringMaterial);
+          const ringGeometry = new THREE.TorusGeometry(0.26, 0.02, 8, 24);
+          const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+          ring.position.set(0, 0.21, 0);
+          mesh.add(ring);
+          geometries.push(ringGeometry);
+        } else if (obj.type === "Diffuseur") {
+          // Diffuseur de soufflage : tronc de cône évasé (bouche hélicoïdale),
+          // plus réaliste qu'une simple plaque plate.
           const material = new THREE.MeshLambertMaterial({ color });
           materials.add(material);
-          const geometry = new THREE.BoxGeometry(0.4, 0.04, 0.4);
+          const geometry = new THREE.CylinderGeometry(0.08, 0.24, 0.12, 24);
           const mesh = new THREE.Mesh(geometry, material);
-          mesh.position.set(px, INSTALL_HEIGHT_M, pz);
+          mesh.position.set(px, INSTALL_HEIGHT_M - 0.06, pz);
           mesh.rotation.y = rotY;
           scene.add(mesh);
           geometries.push(geometry);
           addOutline(mesh, geometry);
           networkMeshes.push(mesh);
+
+          const ringMaterial = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
+          materials.add(ringMaterial);
+          const ringGeometry = new THREE.TorusGeometry(0.24, 0.012, 8, 24);
+          const ring = new THREE.Mesh(ringGeometry, ringMaterial);
+          ring.rotation.x = Math.PI / 2;
+          ring.position.set(0, 0.06, 0);
+          mesh.add(ring);
+          geometries.push(ringGeometry);
+        } else {
+          // Bouche d'extraction : grille à lamelles (plusieurs barrettes en
+          // relief) plutôt qu'une plaque plate uniforme.
+          const material = new THREE.MeshLambertMaterial({ color });
+          materials.add(material);
+          const frameGeometry = new THREE.BoxGeometry(0.42, 0.03, 0.42);
+          const frame = new THREE.Mesh(frameGeometry, material);
+          frame.position.set(px, INSTALL_HEIGHT_M, pz);
+          frame.rotation.y = rotY;
+          scene.add(frame);
+          geometries.push(frameGeometry);
+          addOutline(frame, frameGeometry);
+          networkMeshes.push(frame);
+
+          const slatMaterial = new THREE.MeshLambertMaterial({ color: 0xe2e8f0 });
+          materials.add(slatMaterial);
+          for (const f of [-0.28, -0.09, 0.09, 0.28]) {
+            const slatGeometry = new THREE.BoxGeometry(0.34, 0.015, 0.05);
+            const slat = new THREE.Mesh(slatGeometry, slatMaterial);
+            slat.position.set(0, 0.02, 0.42 * f);
+            frame.add(slat);
+            geometries.push(slatGeometry);
+          }
         }
       }
     }

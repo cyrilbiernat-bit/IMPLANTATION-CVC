@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { PageViewport, PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
   autoRouteDucts,
@@ -1655,6 +1655,21 @@ function FindingBadge({
  * (piquage) et une réduction se reconnaissent d'un coup d'œil sur un plan
  * réel ; le carré générique avec initiales ne le permettait pas.
  */
+/** Petite bride perpendiculaire à une extrémité de raccord — cohérent avec les joints dessinés le long des gaines. */
+function FittingFlange({ x, y, angleDeg, span }: { x: number; y: number; angleDeg: number; span: number }) {
+  return (
+    <line
+      x1={x - Math.sin((angleDeg * Math.PI) / 180) * span}
+      y1={y + Math.cos((angleDeg * Math.PI) / 180) * span}
+      x2={x + Math.sin((angleDeg * Math.PI) / 180) * span}
+      y2={y - Math.cos((angleDeg * Math.PI) / 180) * span}
+      stroke={OUTLINE_COLOR}
+      strokeWidth={1.5}
+      vectorEffect="non-scaling-stroke"
+    />
+  );
+}
+
 function FittingIcon({
   type,
   size,
@@ -1669,18 +1684,19 @@ function FittingIcon({
   // Double trait (contour foncé plus large en dessous, couleur au-dessus) :
   // donne l'effet "tuyau bordé" d'une illustration technique plutôt qu'un
   // simple trait fin, et matérialise l'épaisseur réelle de la gaine.
-  const thickness = size * 0.42;
-  const outlineWidth = thickness + (selected ? 3 : 2.5);
+  const thickness = size * 0.46;
+  const outlineWidth = thickness + (selected ? 3.5 : 3);
+  const flangeSpan = thickness * 0.85;
   const hitSize = size * 1.4;
   const hitArea = <rect x={-hitSize / 2} y={-hitSize / 2} width={hitSize} height={hitSize} fill="transparent" />;
 
   if (type === "Reduction") {
     // Tronc de cône de réduction : la gaine se rétrécit de gauche à droite.
     const points = [
-      [-size / 2, -size * 0.28],
-      [-size / 2, size * 0.28],
-      [size / 2, size * 0.12],
-      [size / 2, -size * 0.12],
+      [-size / 2, -size * 0.34],
+      [-size / 2, size * 0.34],
+      [size / 2, size * 0.15],
+      [size / 2, -size * 0.15],
     ]
       .map((p) => p.join(","))
       .join(" ");
@@ -1692,10 +1708,12 @@ function FittingIcon({
           fill={color}
           fillOpacity={0.9}
           stroke={OUTLINE_COLOR}
-          strokeWidth={selected ? 2.5 : 1.75}
+          strokeWidth={selected ? 3 : 2.25}
           strokeLinejoin="round"
           vectorEffect="non-scaling-stroke"
         />
+        <FittingFlange x={-size / 2} y={0} angleDeg={90} span={size * 0.34} />
+        <FittingFlange x={size / 2} y={0} angleDeg={90} span={size * 0.15} />
       </>
     );
   }
@@ -1708,18 +1726,23 @@ function FittingIcon({
         {hitArea}
         <path d={d} fill="none" stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
         <path d={d} fill="none" stroke={color} strokeWidth={thickness} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+        <FittingFlange x={-size / 2} y={0} angleDeg={90} span={flangeSpan} />
+        <FittingFlange x={size / 2} y={0} angleDeg={90} span={flangeSpan} />
+        <FittingFlange x={0} y={size / 2} angleDeg={0} span={flangeSpan} />
       </>
     );
   }
 
   // Coude : arrivée par la gauche, coude arrondi à 90° vers le bas.
-  const r = size * 0.3;
+  const r = size * 0.32;
   const d = `M ${-size / 2} 0 L ${-r} 0 A ${r} ${r} 0 0 1 0 ${r} L 0 ${size / 2}`;
   return (
     <>
       {hitArea}
       <path d={d} fill="none" stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
       <path d={d} fill="none" stroke={color} strokeWidth={thickness} strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+      <FittingFlange x={-size / 2} y={0} angleDeg={90} span={flangeSpan} />
+      <FittingFlange x={0} y={size / 2} angleDeg={0} span={flangeSpan} />
     </>
   );
 }
@@ -1741,78 +1764,124 @@ function AccessoryIcon({
   color: string;
   selected: boolean;
 }) {
-  const outlineWidth = selected ? 2.5 : 1.75;
+  const outlineWidth = selected ? 3 : 2.25;
+  const filterClipId = useId();
 
   if (type === "Cta") {
-    // Caisson de traitement d'air : trois compartiments (filtre / ventilateur / batterie).
-    const w = size * 2.2;
-    const h = size * 1.3;
+    // Caisson de traitement d'air : trois compartiments (filtre à
+    // claire-voie / ventilateur / batterie), plus grand que les autres
+    // symboles — c'est le plus gros équipement du réseau.
+    const w = size * 3;
+    const h = size * 1.7;
     const compW = w / 3;
+    const filterX0 = -w / 2;
+    const hatchCount = 5;
     return (
       <>
-        <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} fillOpacity={0.18} stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} vectorEffect="non-scaling-stroke" />
-        <line x1={-w / 2 + compW} y1={-h / 2} x2={-w / 2 + compW} y2={h / 2} stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-        <line x1={-w / 2 + compW * 2} y1={-h / 2} x2={-w / 2 + compW * 2} y2={h / 2} stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-        <circle r={h * 0.28} fill="white" stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-        <path d={`M ${-h * 0.16} ${-h * 0.14} L ${h * 0.2} 0 L ${-h * 0.16} ${h * 0.14} Z`} fill={OUTLINE_COLOR} />
+        <rect x={-w / 2} y={-h / 2} width={w} height={h} fill={color} fillOpacity={0.15} stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} vectorEffect="non-scaling-stroke" />
+        {/* Filtre à claire-voie : hachures diagonales dans le premier compartiment. */}
+        <clipPath id={`cta-filter-${filterClipId.replace(/[^a-zA-Z0-9]/g, "")}`}>
+          <rect x={filterX0 + h * 0.08} y={-h / 2 + h * 0.08} width={compW - h * 0.16} height={h * 0.84} />
+        </clipPath>
+        <g clipPath={`url(#cta-filter-${filterClipId.replace(/[^a-zA-Z0-9]/g, "")})`}>
+          {Array.from({ length: hatchCount }, (_, i) => {
+            const off = -compW + (i * (compW * 2)) / (hatchCount - 1);
+            return (
+              <line
+                key={i}
+                x1={filterX0 + off}
+                y1={-h}
+                x2={filterX0 + off + h * 1.2}
+                y2={h}
+                stroke={OUTLINE_COLOR}
+                strokeWidth={1}
+                vectorEffect="non-scaling-stroke"
+              />
+            );
+          })}
+        </g>
+        <rect x={filterX0 + h * 0.08} y={-h / 2 + h * 0.08} width={compW - h * 0.16} height={h * 0.84} fill="none" stroke={OUTLINE_COLOR} strokeWidth={1.25} vectorEffect="non-scaling-stroke" />
+        <line x1={-w / 2 + compW} y1={-h / 2} x2={-w / 2 + compW} y2={h / 2} stroke={OUTLINE_COLOR} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+        <line x1={-w / 2 + compW * 2} y1={-h / 2} x2={-w / 2 + compW * 2} y2={h / 2} stroke={OUTLINE_COLOR} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+        {/* Ventilateur : carter rond + volute, au centre. */}
+        <circle cx={0} cy={0} r={h * 0.34} fill="white" stroke={OUTLINE_COLOR} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+        <circle cx={0} cy={0} r={h * 0.34} fill="none" stroke={OUTLINE_COLOR} strokeWidth={0.75} strokeDasharray="2 2" />
+        <path d={`M ${-h * 0.2} ${-h * 0.17} L ${h * 0.24} 0 L ${-h * 0.2} ${h * 0.17} Z`} fill={OUTLINE_COLOR} />
+        {/* Batterie (chaud/froid) : ailettes verticales dans le dernier compartiment. */}
+        {[-0.25, 0, 0.25].map((f) => (
+          <line
+            key={f}
+            x1={w / 2 - compW + compW * (0.5 + f)}
+            y1={-h / 2 + h * 0.12}
+            x2={w / 2 - compW + compW * (0.5 + f)}
+            y2={h / 2 - h * 0.12}
+            stroke={OUTLINE_COLOR}
+            strokeWidth={1.25}
+            vectorEffect="non-scaling-stroke"
+          />
+        ))}
       </>
     );
   }
 
   if (type === "Extracteur") {
-    // Ventilateur d'extraction : hélice à trois pales dans un cercle.
-    const r = size / 2;
+    // Ventilateur d'extraction : carter rond (double cercle) et hélice à trois pales.
+    const r = size * 0.68;
     const blade = (angleDeg: number) => {
       const rad = (angleDeg * Math.PI) / 180;
-      const tipX = Math.cos(rad) * r * 0.75;
-      const tipY = Math.sin(rad) * r * 0.75;
-      const perpX = Math.cos(rad + Math.PI / 2) * r * 0.18;
-      const perpY = Math.sin(rad + Math.PI / 2) * r * 0.18;
+      const tipX = Math.cos(rad) * r * 0.72;
+      const tipY = Math.sin(rad) * r * 0.72;
+      const perpX = Math.cos(rad + Math.PI / 2) * r * 0.22;
+      const perpY = Math.sin(rad + Math.PI / 2) * r * 0.22;
       return `M 0 0 L ${tipX + perpX} ${tipY + perpY} L ${tipX - perpX} ${tipY - perpY} Z`;
     };
     return (
       <>
-        <circle r={r} fill={color} fillOpacity={0.18} stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} vectorEffect="non-scaling-stroke" />
+        <circle r={r} fill={color} fillOpacity={0.2} stroke={OUTLINE_COLOR} strokeWidth={outlineWidth} vectorEffect="non-scaling-stroke" />
+        <circle r={r * 0.82} fill="none" stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
         {[0, 120, 240].map((angleDeg) => (
           <path key={angleDeg} d={blade(angleDeg)} fill={OUTLINE_COLOR} />
         ))}
-        <circle r={r * 0.15} fill={OUTLINE_COLOR} />
+        <circle r={r * 0.16} fill={OUTLINE_COLOR} />
       </>
     );
   }
 
-  // Diffuseur (soufflage, 4 voies) : carré, croix directionnelle, col central.
-  // Bouche (extraction) : carré, grille à lamelles parallèles.
+  // Diffuseur (soufflage, 4 voies) : cadre de montage, croix directionnelle, col central.
+  // Bouche (extraction) : cadre de montage, grille à lamelles parallèles.
   const isDiffuseur = type === "Diffuseur";
+  const s = size * 1.5;
   return (
     <>
+      {/* Cadre de montage extérieur, en plus de la grille elle-même — donne une épaisseur/profondeur au symbole. */}
+      <rect x={-s / 2} y={-s / 2} width={s} height={s} fill="none" stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
       <rect
-        x={-size / 2}
-        y={-size / 2}
-        width={size}
-        height={size}
+        x={-s * 0.4}
+        y={-s * 0.4}
+        width={s * 0.8}
+        height={s * 0.8}
         fill={isDiffuseur ? color : "white"}
-        fillOpacity={isDiffuseur ? 0.18 : 1}
+        fillOpacity={isDiffuseur ? 0.22 : 1}
         stroke={OUTLINE_COLOR}
         strokeWidth={outlineWidth}
         vectorEffect="non-scaling-stroke"
       />
       {isDiffuseur ? (
         <>
-          <line x1={-size / 2} y1={-size / 2} x2={size / 2} y2={size / 2} stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          <line x1={size / 2} y1={-size / 2} x2={-size / 2} y2={size / 2} stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          <circle r={size * 0.16} fill="white" stroke={OUTLINE_COLOR} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          <line x1={-s * 0.36} y1={-s * 0.36} x2={s * 0.36} y2={s * 0.36} stroke={OUTLINE_COLOR} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          <line x1={s * 0.36} y1={-s * 0.36} x2={-s * 0.36} y2={s * 0.36} stroke={OUTLINE_COLOR} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
+          <circle r={s * 0.2} fill="white" stroke={OUTLINE_COLOR} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
         </>
       ) : (
-        [-0.28, 0, 0.28].map((f) => (
+        [-0.24, -0.08, 0.08, 0.24].map((f) => (
           <line
             key={f}
-            x1={-size * 0.35}
-            y1={size * f}
-            x2={size * 0.35}
-            y2={size * f}
+            x1={-s * 0.32}
+            y1={s * f}
+            x2={s * 0.32}
+            y2={s * f}
             stroke={OUTLINE_COLOR}
-            strokeWidth={1}
+            strokeWidth={1.5}
             vectorEffect="non-scaling-stroke"
           />
         ))
