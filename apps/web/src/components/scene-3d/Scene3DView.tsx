@@ -39,6 +39,37 @@ function fittingRadiusM(obj: CvcObjectDto): number {
 }
 
 /**
+ * Rayon de cintrage du coude, en multiple de la demi-largeur de la gaine —
+ * un rapport trop serré (proche de 1) fait se chevaucher le tube sur
+ * lui-même visuellement (silhouette "grumeleuse" plutôt qu'un vrai coude) ;
+ * un coude réel a un rayon de cintrage généreux par rapport au diamètre.
+ * Partagé avec `fittingTrimM` : les deux doivent rester synchronisés pour
+ * que la gaine rognée rejoigne exactement l'extrémité réelle du tube.
+ */
+const ELBOW_BEND_SCALE = 3.6;
+
+/**
+ * Distance entre le centre d'un raccord (son `position`, le point partagé
+ * avec les gaines qui s'y connectent) et l'extrémité réelle de son tube —
+ * `buildElbowGeometry`/`buildTeeGeometries`/`buildReducerGeometry` dessinent
+ * ce tube à cette distance du centre, pas au centre lui-même. Sans rogner
+ * la gaine connectée de cette même distance, elle s'arrête pile au point de
+ * connexion tandis que le raccord flotte plus loin — c'est le "coude pas
+ * accroché" : les deux ne se touchent jamais.
+ */
+function fittingTrimM(obj: CvcObjectDto): number {
+  const r = fittingRadiusM(obj);
+  if (obj.type === "Coude") return r * ELBOW_BEND_SCALE;
+  if (obj.type === "Te") return r * 2.4 * 1.2;
+  if (obj.type === "Reduction") return (r * 2.4 * 1.6) / 2;
+  return 0;
+}
+
+function pointsEqual(a: { x: number; y: number }, b: { x: number; y: number } | null): boolean {
+  return !!b && Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6;
+}
+
+/**
  * Coude 90° : quart de tore. `position` marque le coin intérieur du coude ;
  * les deux extrémités du tube se trouvent à un rayon de cintrage de là, le
  * long de +X et de -Z locaux (avant rotation par `rotationRad`) — les mêmes
@@ -50,7 +81,7 @@ function buildElbowGeometry(radius: number): THREE.BufferGeometry {
   // (addOutline) — un maillage plus grossier y ferait apparaître chaque
   // facette de la section tubulaire comme un trait, un effet "hérissé"
   // indésirable sur une surface censée être lisse.
-  const geometry = new THREE.TorusGeometry(radius * 2.4, radius, 24, 32, Math.PI / 2);
+  const geometry = new THREE.TorusGeometry(radius * ELBOW_BEND_SCALE, radius, 24, 32, Math.PI / 2);
   geometry.rotateX(-Math.PI / 2);
   return geometry;
 }
@@ -370,14 +401,39 @@ export function Scene3DView({ projectId }: { projectId: string }) {
       }
     }
 
+    const objectById = new Map((objects ?? []).map((o) => [o.id, o]));
+
     for (const obj of objects ?? []) {
       const color = TYPE_COLORS[obj.type];
 
       if (obj.start && obj.end) {
-        const [sx, sz] = toWorld(obj.start.x, obj.start.y);
-        const [ex, ez] = toWorld(obj.end.x, obj.end.y);
-        const length = Math.hypot(ex - sx, ez - sz);
+        const [sxRaw, szRaw] = toWorld(obj.start.x, obj.start.y);
+        const [exRaw, ezRaw] = toWorld(obj.end.x, obj.end.y);
+        const fullLength = Math.hypot(exRaw - sxRaw, ezRaw - szRaw);
+        if (fullLength < 1e-3) continue;
+
+        // Rogne chaque extrémité connectée à un raccord (coude/té/réduction)
+        // de la distance centre-tube de ce raccord, pour que les deux
+        // volumes se rejoignent exactement plutôt que de laisser un vide ou
+        // un chevauchement visible à la jonction.
+        let trimStart = 0;
+        let trimEnd = 0;
+        for (const connId of obj.connectedObjectIds) {
+          const other = objectById.get(connId);
+          if (!other?.position) continue;
+          if (other.type !== "Coude" && other.type !== "Te" && other.type !== "Reduction") continue;
+          const trim = fittingTrimM(other);
+          if (pointsEqual(other.position, obj.start)) trimStart = Math.max(trimStart, trim);
+          if (pointsEqual(other.position, obj.end)) trimEnd = Math.max(trimEnd, trim);
+        }
+        const ux = (exRaw - sxRaw) / fullLength;
+        const uz = (ezRaw - szRaw) / fullLength;
+        const length = fullLength - trimStart - trimEnd;
         if (length < 1e-3) continue;
+        const sx = sxRaw + ux * trimStart;
+        const sz = szRaw + uz * trimStart;
+        const ex = exRaw - ux * trimEnd;
+        const ez = ezRaw - uz * trimEnd;
 
         const isCircular = obj.type === "GaineCirculaire";
         // Matériau mat, sans reflet — l'aplat de couleur d'une illustration

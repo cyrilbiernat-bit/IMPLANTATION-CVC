@@ -366,6 +366,46 @@ public sealed class CvcObjectServiceTests
     }
 
     [Fact]
+    public void SetRotation_updates_the_rotation_of_a_point_object()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+        var coude = sut.AddPointObject(drawingId, layerId, CvcObjectType.Coude, new Point2D(50, 50), 0);
+
+        var result = sut.SetRotation(drawingId, coude.Id, Math.PI / 2);
+
+        Assert.Equal(Math.PI / 2, result.RotationRad);
+        var reloaded = Assert.Single(sut.GetByDrawing(drawingId));
+        Assert.Equal(Math.PI / 2, reloaded.RotationRad);
+    }
+
+    [Fact]
+    public void SetRotation_rejects_a_duct()
+    {
+        var (sut, _, drawingId, layerId) = CreateSut();
+        var duct = sut.AddDuct(drawingId, layerId, CvcObjectType.GaineCirculaire, new Point2D(0, 0), new Point2D(20, 0), null, null, 200);
+
+        Assert.Throws<InvalidCvcObjectException>(() => sut.SetRotation(drawingId, duct.Id, Math.PI));
+    }
+
+    [Fact]
+    public void SetRotation_throws_for_an_object_that_does_not_belong_to_the_drawing()
+    {
+        var (sut, _, drawingId, _) = CreateSut();
+
+        Assert.Throws<InvalidCvcObjectException>(() => sut.SetRotation(drawingId, Guid.NewGuid(), Math.PI));
+    }
+
+    [Fact]
+    public void SetRotation_rejects_an_object_on_a_locked_layer()
+    {
+        var (sut, layers, drawingId, layerId) = CreateSut();
+        var coude = sut.AddPointObject(drawingId, layerId, CvcObjectType.Coude, new Point2D(0, 0), 0);
+        layers.Get(layerId)!.Locked = true;
+
+        Assert.Throws<InvalidCvcObjectException>(() => sut.SetRotation(drawingId, coude.Id, Math.PI));
+    }
+
+    [Fact]
     public void Remove_deletes_the_object_and_clears_references_to_it()
     {
         var (sut, _, drawingId, layerId) = CreateSut();

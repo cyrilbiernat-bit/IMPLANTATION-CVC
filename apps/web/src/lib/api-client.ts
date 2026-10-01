@@ -362,6 +362,21 @@ export async function autoRouteDucts(drawingId: string, input: AutoRouteInput): 
   return res.json();
 }
 
+/** Pivote un raccord ou équipement déjà posé — sa rotation n'est pas toujours déductible à la pose. */
+export async function setCvcObjectRotation(drawingId: string, objectId: string, rotationRad: number): Promise<CvcObjectDto> {
+  const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/objects/${objectId}/rotation`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ rotationRad }),
+  });
+
+  if (!res.ok) {
+    throw new Error(await parseErrorMessage(res, `Échec de la rotation (${res.status})`));
+  }
+
+  return res.json();
+}
+
 export async function deleteCvcObject(drawingId: string, objectId: string): Promise<void> {
   const res = await fetch(`${API_BASE_URL}/api/v1/drawings/${drawingId}/objects/${objectId}`, {
     method: "DELETE",

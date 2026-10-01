@@ -39,7 +39,14 @@ public sealed class CvcObject
 
     // Accessoires / terminaux / équipements — un point.
     public Point2D? Position { get; init; }
-    public double RotationRad { get; init; }
+
+    /// <summary>
+    /// Orientation (radians) d'un raccord/équipement — réglable après coup
+    /// (<see cref="CvcObjectService.SetRotation"/>) car elle ne peut pas
+    /// toujours être déduite correctement à la pose : les gaines qui s'y
+    /// connectent ne sont pas forcément toutes déjà dessinées à cet instant.
+    /// </summary>
+    public double RotationRad { get; set; }
 
     // Module 4 — grandeurs aérauliques. Non calculées par le MVP (hors
     // périmètre : calcul aéraulique/hydraulique) ; le champ existe pour

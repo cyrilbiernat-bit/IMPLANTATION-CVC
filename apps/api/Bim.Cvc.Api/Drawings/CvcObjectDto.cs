@@ -16,6 +16,8 @@ public sealed record CreateCvcObjectRequest(
     double? VitesseMs,
     double? PressionPa);
 
+public sealed record SetRotationRequest(double RotationRad);
+
 public sealed record AutoRouteRequest(
     string DuctType,
     Guid LayerId,

@@ -13,6 +13,7 @@ import {
   fetchCvcObjects,
   fetchDrawingEntities,
   fetchLayers,
+  setCvcObjectRotation,
   updateLayer,
   uploadDrawing,
   type CalibrationDto,
@@ -216,6 +217,7 @@ export function PlanViewer({ projectId }: { projectId: string }) {
   const [objectError, setObjectError] = useState<string | null>(null);
   const [selectedObjectId, setSelectedObjectId] = useState<string | null>(null);
   const [deletingObject, setDeletingObject] = useState(false);
+  const [rotatingObject, setRotatingObject] = useState(false);
   const [complianceFindings, setComplianceFindings] = useState<ComplianceFindingDto[]>([]);
 
   // Calques (verrouillage + affichage indépendants des objets CVC).
@@ -703,6 +705,27 @@ export function PlanViewer({ projectId }: { projectId: string }) {
       setObjectError(err instanceof Error ? err.message : "Échec de la suppression.");
     } finally {
       setDeletingObject(false);
+    }
+  };
+
+  /**
+   * Pivote le raccord/équipement sélectionné par pas de 90° — sa rotation à
+   * la pose n'est pas toujours déductible (les gaines voisines ne sont pas
+   * forcément déjà toutes dessinées), donc l'utilisateur la corrige ici.
+   */
+  const rotateSelected = async () => {
+    if (!drawingId || !selectedObjectId) return;
+    const current = objects.find((o) => o.id === selectedObjectId);
+    if (!current) return;
+    const nextRotation = (current.rotationRad + Math.PI / 2) % (2 * Math.PI);
+    setRotatingObject(true);
+    try {
+      const updated = await setCvcObjectRotation(drawingId, selectedObjectId, nextRotation);
+      setObjects((prev) => prev.map((o) => (o.id === updated.id ? updated : o)));
+    } catch (err) {
+      setObjectError(err instanceof Error ? err.message : "Échec de la rotation.");
+    } finally {
+      setRotatingObject(false);
     }
   };
 
@@ -1208,6 +1231,8 @@ export function PlanViewer({ projectId }: { projectId: string }) {
                 layer={selectedObjectLayer}
                 onDelete={deleteSelected}
                 deleting={deletingObject}
+                onRotate={rotateSelected}
+                rotating={rotatingObject}
               />
             )}
           </div>
@@ -1279,11 +1304,15 @@ function PropertiesPanel({
   layer,
   onDelete,
   deleting,
+  onRotate,
+  rotating,
 }: {
   object: CvcObjectDto;
   layer: LayerDto | null;
   onDelete: () => void;
   deleting: boolean;
+  onRotate: () => void;
+  rotating: boolean;
 }) {
   const isDuct = !!object.start && !!object.end;
   const locked = !!layer?.locked;
@@ -1318,12 +1347,27 @@ function PropertiesPanel({
       <PropertyField label="Vitesse" value={object.vitesseMs != null ? `${object.vitesseMs} m/s` : "—"} />
       <PropertyField label="Pression" value={object.pressionPa != null ? `${object.pressionPa} Pa` : "—"} />
       <PropertyField label="Connexions" value={String(object.connectedObjectIds.length)} />
+      {!isDuct && (
+        <button
+          type="button"
+          onClick={onRotate}
+          disabled={rotating || locked}
+          title={
+            locked
+              ? `Le calque « ${layer?.name} » est verrouillé`
+              : "Sa rotation n'est pas toujours déduite correctement à la pose (les gaines voisines ne sont pas forcément déjà dessinées) — à corriger ici au besoin."
+          }
+          className="mt-2 rounded border border-slate-600 bg-slate-800 px-2 py-1.5 font-medium text-slate-200 hover:bg-slate-700 disabled:opacity-50"
+        >
+          {rotating ? "Rotation…" : "⟳ Pivoter 90°"}
+        </button>
+      )}
       <button
         type="button"
         onClick={onDelete}
         disabled={deleting || locked}
         title={locked ? `Le calque « ${layer?.name} » est verrouillé` : undefined}
-        className="mt-2 rounded border border-rose-800 bg-rose-950/40 px-2 py-1.5 font-medium text-rose-300 hover:bg-rose-950/70 disabled:opacity-50"
+        className="rounded border border-rose-800 bg-rose-950/40 px-2 py-1.5 font-medium text-rose-300 hover:bg-rose-950/70 disabled:opacity-50"
       >
         {locked ? "🔒 Calque verrouillé" : deleting ? "Suppression…" : "✕ Supprimer"}
       </button>

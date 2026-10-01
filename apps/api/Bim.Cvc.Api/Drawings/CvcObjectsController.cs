@@ -118,6 +118,25 @@ public sealed class CvcObjectsController(CvcObjectService service) : ControllerB
         }
     }
 
+    /// <summary>Pivote un raccord ou équipement déjà posé — la rotation n'est pas toujours déductible à la pose.</summary>
+    [HttpPut("{objectId:guid}/rotation")]
+    public ActionResult<CvcObjectDto> SetRotation(Guid drawingId, Guid objectId, SetRotationRequest request)
+    {
+        try
+        {
+            var obj = service.SetRotation(drawingId, objectId, request.RotationRad);
+            return Ok(ToDto(obj));
+        }
+        catch (DrawingNotFoundException)
+        {
+            return NotFound();
+        }
+        catch (InvalidCvcObjectException ex)
+        {
+            return BadRequest(new { message = ex.Message });
+        }
+    }
+
     [HttpDelete("{objectId:guid}")]
     public IActionResult Delete(Guid drawingId, Guid objectId)
     {

@@ -230,6 +230,32 @@ public sealed class CvcObjectService(IDrawingRepository drawings, ICvcObjectRepo
         _ => null,
     };
 
+    /// <summary>
+    /// Pivote un raccord ou un équipement déjà posé (module 3). Les gaines
+    /// n'ont pas de rotation propre (leur orientation vient de Start/End) ;
+    /// seuls les objets à un point peuvent être pivotés.
+    /// </summary>
+    public CvcObject SetRotation(Guid drawingId, Guid objectId, double rotationRad)
+    {
+        _ = drawings.Get(drawingId) ?? throw new DrawingNotFoundException(drawingId);
+        var existing = objects.Get(objectId);
+        if (existing is null || existing.DrawingId != drawingId)
+        {
+            throw new InvalidCvcObjectException("Objet introuvable sur ce plan.");
+        }
+        if (CvcObject.IsDuct(existing.Type))
+        {
+            throw new InvalidCvcObjectException("Une gaine n'a pas de rotation propre.");
+        }
+        if (layerService.IsLocked(existing.LayerId))
+        {
+            throw new InvalidCvcObjectException("Cet objet est sur un calque verrouillé.");
+        }
+
+        existing.RotationRad = rotationRad;
+        return existing;
+    }
+
     public void Remove(Guid drawingId, Guid objectId)
     {
         _ = drawings.Get(drawingId) ?? throw new DrawingNotFoundException(drawingId);
